@@ -450,3 +450,9 @@ practice.example.com {
 - 삭제 실패가 로그에 남고 재시도됨
 
 가장 중요한 설계 원칙은 **반 설정과 수업 회차를 분리하는 것**입니다. 반 설정은 다음 수업을 위한 기본값이고, 진행 중인 수업은 시작할 때 저장한 설정 스냅샷을 끝까지 사용합니다. 현재 수업을 바꾸는 동작은 설정 변경이 아니라 `개방·연장·마감`이라는 별도 기능으로만 처리합니다.
+
+docker exec -u 0 -it skb_workbook_frontend node node_modules/tsx/dist/cli.mjs scripts/create-account.ts teacher_makeup "박지현" "pass1234!" TEACHER
+
+UPDATE teachers SET "loginId" = 'teacher_hair' WHERE name = '박지현';
+
+SELECT "loginId", name, role FROM teachers;

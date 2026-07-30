@@ -42,11 +42,6 @@ export default function TeacherLoginPage() {
     }
   };
 
-  const handleQuickFill = (fillLoginId: string) => {
-    setLoginId(fillLoginId);
-    setPassword(fillLoginId === 'admin' ? 'admin1234!' : 'teacher1234!');
-  };
-
   return (
     <div className="flex flex-col min-h-screen items-center justify-center p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white">
       <div className="w-full max-w-md p-8 rounded-2xl glass-panel shadow-2xl backdrop-blur-xl border border-white/10 space-y-6">
@@ -84,7 +79,7 @@ export default function TeacherLoginPage() {
               required
               value={loginId}
               onChange={(e) => setLoginId(e.target.value)}
-              placeholder="teacher01"
+              placeholder="아이디를 입력하세요"
               className="w-full px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             />
           </div>
@@ -121,27 +116,6 @@ export default function TeacherLoginPage() {
             )}
           </button>
         </form>
-
-        {/* 테스트용 빠른 입력 퀵버튼 힌트 카드 */}
-        <div className="p-4 rounded-xl bg-slate-800/40 border border-white/5 space-y-2 text-xs text-slate-400">
-          <p className="font-semibold text-indigo-300">💡 테스트 시드 계정 빠른 채우기:</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickFill('teacher01')}
-              className="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs transition-colors"
-            >
-              일반 강사
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('admin')}
-              className="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs transition-colors"
-            >
-              원장 관리자
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

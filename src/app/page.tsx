@@ -19,9 +19,8 @@ export default function HomePage() {
           이름과 개인 PIN 인증 후 연습 결과를 제출해 주세요.
         </p>
 
-        {/* 테스트용 빠른 이동 카드 */}
+        {/* 강사 로그인 진입 카드 */}
         <div className="space-y-3 pt-2">
-          {/* 강사 로그인 진입 */}
           <Link
             href="/teacher/login"
             className="w-full flex items-center justify-between p-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all duration-200 shadow-lg shadow-indigo-600/30"
@@ -33,25 +32,6 @@ export default function HomePage() {
               <span>강사 / 관리자 로그인</span>
             </div>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-
-          {/* 샘플 반 QR 테스트 진입 */}
-          <Link
-            href="/join/hair-cut-class-a-token"
-            className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-white text-sm font-medium transition-all duration-200"
-          >
-            <div className="flex items-center gap-3 text-left">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              <div>
-                <div className="text-xs text-emerald-400 font-semibold">학생 QR 테스트 (헤어 커트 A반)</div>
-                <div className="text-xs text-slate-400">QR 코드 스캔 접속 화면 체험하기</div>
-              </div>
-            </div>
-            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
             </svg>
           </Link>
