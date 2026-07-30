@@ -2,24 +2,41 @@ import { prisma } from '../src/lib/prisma';
 import { hashSecret } from '../src/lib/auth';
 
 async function main() {
-  console.log('🌱 Database Seeding 시작...');
+  const isProduction = process.env.NODE_ENV === 'production';
+  console.log(`🌱 Database Seeding 시작... (모드: ${isProduction ? '운영(Production)' : '개발(Development)'})`);
 
-  // 1. 초기 비밀번호 생성 (argon2)
-  const adminPasswordHash = await hashSecret('admin1234!');
-  const teacherPasswordHash = await hashSecret('teacher1234!');
-  const defaultStudentPinHash = await hashSecret('1234');
+  // 1. 운영 및 개발 공통: 최초 관리자(원장님) 계정 생성/보장
+  const adminLoginId = process.env.INITIAL_ADMIN_ID || 'admin';
+  const adminRawPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin1234!';
+  const adminPasswordHash = await hashSecret(adminRawPassword);
 
-  // 2. 관리자 및 강사 계정 생성 (Upsert)
   const adminTeacher = await prisma.teacher.upsert({
-    where: { loginId: 'admin' },
-    update: { passwordHash: adminPasswordHash },
+    where: { loginId: adminLoginId },
+    update: {}, // 기존 계정이 이미 존재하면 비밀번호를 임의로 덮어쓰지 않음
     create: {
-      loginId: 'admin',
-      name: '최고 관리자',
+      loginId: adminLoginId,
+      name: '원장님 (최고 관리자)',
       passwordHash: adminPasswordHash,
       role: 'ADMIN',
     },
   });
+
+  console.log(`✅ 원장님(ADMIN) 관리자 계정 준비 완료: ID [ ${adminTeacher.loginId} ]`);
+
+  // 2. 운영 환경인 경우 개발용 샘플 데이터 생성 중단 및 종료
+  if (isProduction) {
+    console.log('🔒 운영 환경(Production) 모드이므로 테스트용 샘플 반/수강생/실습 데이터 생성을 건너끕니다.');
+    console.log('✨ 운영 준비가 성공적으로 완료되었습니다.');
+    return;
+  }
+
+  // ==========================================
+  // [개발/테스트 환경 전용] 테스트 샘플 데이터 주입
+  // ==========================================
+  console.log('🧪 개발 모드: 테스트용 강사, 반, 수강생, 실습 데이터 주입 중...');
+
+  const teacherPasswordHash = await hashSecret('teacher1234!');
+  const defaultStudentPinHash = await hashSecret('1234');
 
   const mainTeacher = await prisma.teacher.upsert({
     where: { loginId: 'teacher01' },
@@ -30,11 +47,6 @@ async function main() {
       passwordHash: teacherPasswordHash,
       role: 'TEACHER',
     },
-  });
-
-  console.log('✅ 강사 계정 생성 완료:', {
-    admin: adminTeacher.loginId,
-    teacher: mainTeacher.loginId,
   });
 
   // 3-1. 샘플 반 1: 헤어 커트 A반
@@ -207,7 +219,6 @@ async function main() {
 
     const classSessionId = sessionMap.get(st.classId);
     if (classSessionId) {
-      // 1번째 원시 Submission + 파일
       await prisma.submission.create({
         data: {
           classSessionId,
@@ -228,7 +239,6 @@ async function main() {
         },
       });
 
-      // 2번째 원시 Submission + 파일
       await prisma.submission.create({
         data: {
           classSessionId,
@@ -250,7 +260,6 @@ async function main() {
       });
     }
 
-    // 샘플 일별 종합 기록 생성 (오늘, 어제, 2일 전, 7일 전)
     const nowObj = new Date();
     const getDateStr = (offsetDays: number) => {
       const d = new Date(nowObj);
@@ -260,32 +269,18 @@ async function main() {
 
     const sampleDates = [
       {
-        offset: 0, // 오늘
+        offset: 0,
         duration: 120,
         count: 2,
         cats: { '원랭스 커트': 60, '와인딩 펌': 60 },
         memos: ['원랭스 커트 각도 45도 조절 연습 완료', '와인딩 텐션 및 로드 파지 연습'],
       },
       {
-        offset: 1, // 어제
+        offset: 1,
         duration: 90,
         count: 2,
         cats: { '여성 숏커트': 45, '핑거웨이브': 45 },
         memos: ['핑거웨이브 웨이브 간격 조절 연습', '숏커트 블렌딩 처리 향상'],
-      },
-      {
-        offset: 2, // 2일 전
-        duration: 150,
-        count: 3,
-        cats: { '보브 커트': 60, '롤세팅': 90 },
-        memos: ['롤세팅 열처리 시간 준수', '보브 커트 대칭 점검'],
-      },
-      {
-        offset: 7, // 7일 전
-        duration: 60,
-        count: 1,
-        cats: { '레이어드 커트': 60 },
-        memos: ['레이어드 층 내기 기초 완성'],
       },
     ];
 
@@ -318,8 +313,7 @@ async function main() {
     }
   }
 
-  console.log('✅ 샘플 반 3개 및 오늘 제출 타임라인/파일 생성 완료!');
-  console.log('🌱 Database Seeding 이 성공적으로 완료되었습니다.');
+  console.log('✅ 개발 환경 테스트 샘플 주입 완료!');
 }
 
 main()

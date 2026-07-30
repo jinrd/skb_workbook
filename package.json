@@ -10,7 +10,8 @@
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "create-account": "tsx scripts/create-account.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
