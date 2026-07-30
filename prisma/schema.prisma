@@ -1,0 +1,297 @@
+// Prisma 7 Schema for 미용학원 연습 기록 사이트
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. 강사 / 관리자 계정
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+model Teacher {
+  id           String   @id @default(cuid())
+  loginId      String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(TEACHER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  classes           Class[]             @relation("ClassTeacher")
+  settingLogs       SettingChangeLog[]
+
+  @@map("teachers")
+}
+
+// 2. 반 (Class)
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  joinToken   String   @unique // QR 코드 접속용 고정 무작위 토큰
+  isActive    Boolean  @default(true)
+  teacherId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teacher Teacher @relation("ClassTeacher", fields: [teacherId], references: [id])
+
+  settingVersions    ClassSettingVersion[]
+  enrollments        Enrollment[]
+  practiceCategories PracticeCategory[]
+  schedules          ClassSchedule[]
+  scheduleExceptions ScheduleException[]
+  sessions           ClassSession[]
+  settingLogs        SettingChangeLog[]
+  dailyReports       DailyStudentReport[]
+
+  @@map("classes")
+}
+
+// 3. 반 설정 버전 (다음 수업 적용 원칙)
+model ClassSettingVersion {
+  id                 String   @id @default(cuid())
+  classId            String
+  version            Int      @default(1)
+  name               String
+  description        String?
+  preEntryMinutes    Int      @default(10) // 사전 접속 허용시간(분)
+  gracePeriodMinutes Int      @default(10) // 제출 유예시간(분)
+  maxFilesPerSub     Int      @default(5)  // 파일 개수 제한
+  maxFileSizeMB      Int      @default(10) // 파일 용량 제한(MB)
+  changedById        String
+  createdAt          DateTime @default(now())
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  sessions ClassSession[]
+
+  @@unique([classId, version])
+  @@map("class_setting_versions")
+}
+
+// 4. 학생 (Student)
+model Student {
+  id        String   @id @default(cuid())
+  name      String   // 이름
+  pinHash   String   // PIN 암호화 해시 (원문 보관 안함)
+  isBlocked Boolean  @default(false) // 관리자 전용 차단
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollments Enrollment[]
+  sessions    StudentSession[]
+  submissions Submission[]
+  dailyReports DailyStudentReport[]
+
+  @@map("students")
+}
+
+// 5. 학생 - 반 수강 연결 (Enrollment)
+model Enrollment {
+  id         String    @id @default(cuid())
+  classId    String
+  studentId  String
+  enrolledAt DateTime  @default(now())
+  droppedAt  DateTime? // 반에서 제외된 시점 (다음 수업부터 반영)
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@map("enrollments")
+}
+
+// 6. 연습 종목 (PracticeCategory)
+model PracticeCategory {
+  id        String   @id @default(cuid())
+  classId   String
+  name      String   // 예: 여성 커트, 남성 커트, 와인딩 등
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("practice_categories")
+}
+
+// 7. 정규 시간표 (ClassSchedule)
+model ClassSchedule {
+  id                 String   @id @default(cuid())
+  classId            String
+  dayOfWeek          Int      // 0: 일요일, 1: 월요일 ... 6: 토요일
+  startTime          String   // "14:00"
+  endTime            String   // "16:00"
+  preEntryMinutes    Int      @default(10)
+  gracePeriodMinutes Int      @default(10)
+  createdAt          DateTime @default(now())
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("class_schedules")
+}
+
+// 8. 시간표 예외사항 (ScheduleException: 휴강, 보강, 임시수업)
+enum ExceptionType {
+  CANCEL     // 휴강
+  ADDITIONAL // 보강 / 임시수업
+}
+
+model ScheduleException {
+  id            String        @id @default(cuid())
+  classId       String
+  date          DateTime      // YYYY-MM-DD
+  type          ExceptionType
+  startTime     String?       // "14:00" (ADDITIONAL 인 경우)
+  endTime       String?       // "16:00"
+  reason        String?
+  createdAt     DateTime      @default(now())
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("schedule_exceptions")
+}
+
+// 9. 실제 수업 회차 및 설정 스냅샷 (ClassSession)
+enum SessionStatus {
+  SCHEDULED // 예정됨
+  OPEN      // 진행 중
+  EXTENDED  // 시간 연장됨
+  CLOSED    // 마감됨
+}
+
+model ClassSession {
+  id                 String        @id @default(cuid())
+  classId            String
+  settingVersionId   String?
+  date               DateTime      // 수업 날짜
+  scheduledStartTime DateTime      // 정규 시작 시각
+  scheduledEndTime   DateTime      // 정규 종료 시각
+  actualAllowedStart DateTime      // 실제 사전 접속 포함 허용 시작 시각
+  actualAllowedEnd   DateTime      // 실제 유예/연장 포함 허용 종료 시각
+  status             SessionStatus @default(SCHEDULED)
+  snapshotData       String        @db.Text // 수업 시작 시점의 반 설정/학생명단/종목 스냅샷 JSON
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  class          Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  settingVersion ClassSettingVersion? @relation(fields: [settingVersionId], references: [id])
+
+  studentSessions   StudentSession[]
+  submissions       Submission[]
+
+  @@map("class_sessions")
+}
+
+// 10. 학생 수업 접속 세션 (StudentSession)
+model StudentSession {
+  id             String   @id @default(cuid())
+  classSessionId String
+  studentId      String
+  token          String   @unique
+  expiresAt      DateTime
+  isValid        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("student_sessions")
+}
+
+// 11. 연습 결과 제출 (Submission - 텍스트 한달 보관)
+model Submission {
+  id               String   @id @default(cuid())
+  classSessionId   String
+  studentId        String
+  categoryName     String   // 제출 당시 연습 종목명
+  durationMinutes  Int      // 연습시간(분)
+  content          String   @db.Text // 결과 설명 텍스트
+  submittedAt      DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  classSession ClassSession     @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  files        SubmissionFile[]
+
+  @@map("submissions")
+}
+
+// 12. 첨부파일 기록 (SubmissionFile - 다음날 완전 삭제)
+model SubmissionFile {
+  id           String    @id @default(cuid())
+  submissionId String
+  googleFileId String    // Google Drive File ID
+  fileName     String    // 원본 파일명
+  fileSize     Int       // 파일 용량 (Bytes)
+  mimeType     String?   // 파일 타입 (image/jpeg, video/mp4 등)
+  isDeleted    Boolean   @default(false) // Google Drive 완전 삭제 여부
+  deletedAt    DateTime? // 삭제된 시각
+  createdAt    DateTime  @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@map("submission_files")
+}
+
+// 13. 반 설정 변경 이력 로그 (SettingChangeLog)
+model SettingChangeLog {
+  id          String   @id @default(cuid())
+  classId     String
+  teacherId   String
+  changeType  String   // "SCHEDULE", "STUDENT_LIST", "FILE_LIMIT" 등
+  beforeValue String   @db.Text
+  afterValue  String   @db.Text
+  appliedFrom String   // 적용 시작 수업 회차 정보
+  createdAt   DateTime @default(now())
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("setting_change_logs")
+}
+
+
+// 15. 자동 Cleanup 작업 결과 로그 (CleanupLog)
+enum CleanupType {
+  DAILY_FILE      // 일일 구글드라이브 파일 삭제
+  MONTHLY_TEXT    // 월간 연습 결과 텍스트 삭제
+}
+
+model CleanupLog {
+  id           String      @id @default(cuid())
+  type         CleanupType
+  status       String      // "SUCCESS", "PARTIAL_FAILURE", "FAILED"
+  targetCount  Int         @default(0)
+  deletedCount Int         @default(0)
+  failCount    Int         @default(0)
+  details      String?     @db.Text // 상세 에러 및 대상 ID 로그
+  executedAt   DateTime    @default(now())
+
+  @@map("cleanup_logs")
+}
+
+// 16. 학생 일별 통합 종합 기록 (DailyStudentReport)
+model DailyStudentReport {
+  id                   String   @id @default(cuid())
+  studentId            String
+  classId              String
+  date                 String   // "YYYY-MM-DD"
+  totalDurationMinutes Int      @default(0) // 하루 총 연습 시간(분)
+  submissionCount      Int      @default(0) // 하루 제출 횟수
+  categorySummary      String   @db.Text   // JSON: {"원랭스 커트": 30, "와인딩": 60}
+  memos                String   @db.Text   // JSON: ["메모 1", "메모 2"]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classId, date])
+  @@map("daily_student_reports")
+}

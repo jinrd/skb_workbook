@@ -1,0 +1,130 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { ReactNode } from 'react';
+
+export default function TeacherDashboardLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/teacher/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      window.location.href = '/teacher/login';
+    }
+  };
+
+  const navItems = [
+    {
+      label: '오늘 수업',
+      href: '/teacher/dashboard',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+      exact: true,
+    },
+    {
+      label: '반 관리',
+      href: '/teacher/dashboard/classes',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h6m-6 0V10m6 11V10m-6 0a2 2 0 012-2h2a2 2 0 012 2m-6 0T5 10" />
+        </svg>
+      ),
+    },
+    {
+      label: '학생 관리',
+      href: '/teacher/dashboard/students',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+    },
+    {
+      label: '제출 결과',
+      href: '/teacher/dashboard/submissions',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      label: '감사 로그',
+      href: '/teacher/dashboard/audit-logs',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24 md:pb-8">
+      {/* 모바일 최적화 상단 App Bar */}
+      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 shadow-md">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <Link href="/teacher/dashboard" className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-black text-sm shadow-md shadow-indigo-500/20">
+              S
+            </span>
+            <div>
+              <h1 className="text-sm font-bold text-white leading-tight">SKB 미용 실습 워크북</h1>
+              <p className="text-[10px] text-slate-400 font-medium">강사 통합 관리자 센터</p>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold transition-all border border-slate-700/60 shadow-sm"
+          >
+            로그아웃
+          </button>
+        </div>
+      </header>
+
+      {/* 메인 컨텐츠 영역 */}
+      <main className="max-w-4xl mx-auto p-4 md:p-6">
+        {children}
+      </main>
+
+      {/* 모바일 전용 Bottom Navigation Bar (스마트폰 뷰 고정 하단 탭) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 px-2 py-2 shadow-2xl">
+        <div className="max-w-md mx-auto grid grid-cols-5 gap-1">
+          {navItems.map((item) => {
+            const isActive = item.exact
+              ? pathname === item.href
+              : pathname.startsWith(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all ${
+                  isActive
+                    ? 'text-indigo-400 bg-indigo-500/15 font-bold shadow-inner'
+                    : 'text-slate-400 hover:text-slate-200 active:bg-slate-800/60'
+                }`}
+              >
+                <div className={`${isActive ? 'scale-110 text-indigo-400' : ''} transition-transform`}>
+                  {item.icon}
+                </div>
+                <span className="text-[10px] mt-1 tracking-tight truncate w-full text-center">
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+}
