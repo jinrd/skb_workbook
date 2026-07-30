@@ -1,5 +1,11 @@
-import { prisma } from '../src/lib/prisma';
-import { hashSecret } from '../src/lib/auth';
+import { PrismaClient } from '@prisma/client';
+import argon2 from 'argon2';
+
+const prisma = new PrismaClient();
+
+async function hashSecret(secret: string): Promise<string> {
+  return await argon2.hash(secret);
+}
 
 /**
  * 계정 생성 CLI 스크립트
@@ -9,9 +15,9 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 4) {
-    console.log('📌 사용법: npx tsx scripts/create-account.ts <loginId> <이름> <비밀번호> <ADMIN|TEACHER>');
-    console.log('예시 1 (원장님): npx tsx scripts/create-account.ts director "원장님" "director1234!" ADMIN');
-    console.log('예시 2 (강사님): npx tsx scripts/create-account.ts teacher_kim "김강사" "pass1234!" TEACHER');
+    console.log('📌 사용법: node node_modules/tsx/dist/cli.mjs scripts/create-account.ts <loginId> <이름> <비밀번호> <ADMIN|TEACHER>');
+    console.log('예시 1 (원장님): node node_modules/tsx/dist/cli.mjs scripts/create-account.ts director "원장님" "director1234!" ADMIN');
+    console.log('예시 2 (강사님): node node_modules/tsx/dist/cli.mjs scripts/create-account.ts teacher_kim "김강사" "pass1234!" TEACHER');
     process.exit(1);
   }
 

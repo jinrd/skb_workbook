@@ -1,5 +1,11 @@
-import { prisma } from '../src/lib/prisma';
-import { hashSecret } from '../src/lib/auth';
+import { PrismaClient } from '@prisma/client';
+import argon2 from 'argon2';
+
+const prisma = new PrismaClient();
+
+async function hashSecret(secret: string): Promise<string> {
+  return await argon2.hash(secret);
+}
 
 async function main() {
   const isProduction = process.env.NODE_ENV === 'production';
