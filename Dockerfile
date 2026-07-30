@@ -33,7 +33,8 @@ WORKDIR /app
 
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs \
-  && mkdir -p /home/nextjs && chown -R nextjs:nodejs /home/nextjs
+  && mkdir -p /home/nextjs && chown -R nextjs:nodejs /home/nextjs \
+  && chown -R nextjs:nodejs /app
 
 ENV HOME=/home/nextjs
 
