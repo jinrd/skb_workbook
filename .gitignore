@@ -51,3 +51,5 @@ deploy/*.env
 # Local/build files
 node_modules/
 .next/
+
+deploy/*.env
