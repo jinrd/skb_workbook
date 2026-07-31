@@ -33,7 +33,7 @@ model Class {
   id          String   @id @default(cuid())
   name        String
   description String?
-  joinToken   String   @unique // QR 코드 접속용 고정 무작위 토큰
+  joinToken   String   @unique
   isActive    Boolean  @default(true)
   teacherId   String
   createdAt   DateTime @default(now())
@@ -43,13 +43,15 @@ model Class {
 
   settingVersions    ClassSettingVersion[]
   enrollments        Enrollment[]
-  practiceCategories PracticeCategory[]
+  practiceGoals      PracticeGoal[]
   schedules          ClassSchedule[]
   scheduleExceptions ScheduleException[]
   sessions           ClassSession[]
+  submissions        Submission[]
   settingLogs        SettingChangeLog[]
-  dailyReports       DailyStudentReport[]
 
+  @@index([teacherId])
+  @@index([isActive])
   @@map("classes")
 }
 
@@ -78,17 +80,18 @@ model ClassSettingVersion {
 // 4. 학생 (Student)
 model Student {
   id        String   @id @default(cuid())
-  name      String   // 이름
-  pinHash   String   // PIN 암호화 해시 (원문 보관 안함)
-  isBlocked Boolean  @default(false) // 관리자 전용 차단
+  name      String
+  pinHash   String
+  isBlocked Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   enrollments Enrollment[]
   sessions    StudentSession[]
   submissions Submission[]
-  dailyReports DailyStudentReport[]
 
+  @@index([name])
+  @@index([isBlocked])
   @@map("students")
 }
 
@@ -98,28 +101,35 @@ model Enrollment {
   classId    String
   studentId  String
   enrolledAt DateTime  @default(now())
-  droppedAt  DateTime? // 반에서 제외된 시점 (다음 수업부터 반영)
+  droppedAt  DateTime?
 
   class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([classId, studentId])
+  @@index([studentId])
+  @@index([classId, droppedAt])
   @@map("enrollments")
 }
 
-// 6. 연습 종목 (PracticeCategory)
-model PracticeCategory {
-  id        String   @id @default(cuid())
-  classId   String
-  name      String   // 예: 여성 커트, 남성 커트, 와인딩 등
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+// 6. 학습 목표
+model PracticeGoal {
+  id          String   @id @default(cuid())
+  classId     String
+  name        String
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
 
-  @@map("practice_categories")
-}
+  submissions Submission[]
 
+  @@unique([classId, name])
+  @@index([classId, isActive])
+  @@map("practice_goals")
+}
 // 7. 정규 시간표 (ClassSchedule)
 model ClassSchedule {
   id                 String   @id @default(cuid())
@@ -175,7 +185,7 @@ model ClassSession {
   actualAllowedStart DateTime      // 실제 사전 접속 포함 허용 시작 시각
   actualAllowedEnd   DateTime      // 실제 유예/연장 포함 허용 종료 시각
   status             SessionStatus @default(SCHEDULED)
-  snapshotData       String        @db.Text // 수업 시작 시점의 반 설정/학생명단/종목 스냅샷 JSON
+  snapshotData       String        @db.Text // 수업 시작 시점의 반 설정/학생명단/목표 스냅샷 JSON
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -207,35 +217,48 @@ model StudentSession {
 // 11. 연습 결과 제출 (Submission - 텍스트 한달 보관)
 model Submission {
   id               String   @id @default(cuid())
+  classId          String
   classSessionId   String
   studentId        String
-  categoryName     String   // 제출 당시 연습 종목명
-  durationMinutes  Int      // 연습시간(분)
-  content          String   @db.Text // 결과 설명 텍스트
+  practiceGoalId   String
+
+  goalName         String
+  durationSeconds  Int
+  memo             String?  @db.Text
+
   submittedAt      DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  classSession ClassSession     @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
-  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  files        SubmissionFile[]
+  class        Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classSession ClassSession  @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  practiceGoal PracticeGoal  @relation(fields: [practiceGoalId], references: [id], onDelete: Restrict)
 
+  files SubmissionFile[]
+
+  @@index([classId, submittedAt])
+  @@index([studentId, submittedAt])
+  @@index([practiceGoalId, submittedAt])
+  @@index([classSessionId])
   @@map("submissions")
 }
 
-// 12. 첨부파일 기록 (SubmissionFile - 다음날 완전 삭제)
+// 12. 첨부파일 기록 (SubmissionFile - 1개월 보관 후 삭제)
 model SubmissionFile {
   id           String    @id @default(cuid())
   submissionId String
-  googleFileId String    // Google Drive File ID
-  fileName     String    // 원본 파일명
-  fileSize     Int       // 파일 용량 (Bytes)
-  mimeType     String?   // 파일 타입 (image/jpeg, video/mp4 등)
-  isDeleted    Boolean   @default(false) // Google Drive 완전 삭제 여부
-  deletedAt    DateTime? // 삭제된 시각
+  googleFileId String    @unique
+  fileName     String
+  fileSize     Int
+  mimeType     String?
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
   createdAt    DateTime  @default(now())
 
   submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
+  @@index([submissionId])
+  @@index([isDeleted, createdAt])
   @@map("submission_files")
 }
 
@@ -259,8 +282,7 @@ model SettingChangeLog {
 
 // 15. 자동 Cleanup 작업 결과 로그 (CleanupLog)
 enum CleanupType {
-  DAILY_FILE      // 일일 구글드라이브 파일 삭제
-  MONTHLY_TEXT    // 월간 연습 결과 텍스트 삭제
+  MONTHLY_RETENTION
 }
 
 model CleanupLog {
@@ -276,22 +298,36 @@ model CleanupLog {
   @@map("cleanup_logs")
 }
 
-// 16. 학생 일별 통합 종합 기록 (DailyStudentReport)
-model DailyStudentReport {
-  id                   String   @id @default(cuid())
-  studentId            String
-  classId              String
-  date                 String   // "YYYY-MM-DD"
-  totalDurationMinutes Int      @default(0) // 하루 총 연습 시간(분)
-  submissionCount      Int      @default(0) // 하루 제출 횟수
-  categorySummary      String   @db.Text   // JSON: {"원랭스 커트": 30, "와인딩": 60}
-  memos                String   @db.Text   // JSON: ["메모 1", "메모 2"]
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
 
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+enum ExportStatus {
+  GENERATED
+  DOWNLOADED
+  CLEANUP_COMPLETED
+  FAILED
+}
 
-  @@unique([studentId, classId, date])
-  @@map("daily_student_reports")
+// 엑셀 내보내기 상태 추가
+model MonthlyExportLog {
+  id              String       @id @default(cuid())
+  periodKey       String
+  scopeKey        String       @default("ALL") // 전체 내보내기: ALL, 강사별 내보내기: 강사 ID
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          ExportStatus @default(GENERATED)
+
+  submissionCount Int          @default(0)
+  fileCount       Int          @default(0)
+
+  generatedAt     DateTime     @default(now())
+  downloadedAt    DateTime?
+  dbDeletedAt     DateTime?
+  driveDeletedAt  DateTime?
+  errorMessage    String?      @db.Text
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([periodKey, scopeKey])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+  @@index([scopeKey])
+  @@map("monthly_export_logs")
 }

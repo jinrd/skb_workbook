@@ -1,336 +1,449 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from "react";
 
-interface ClassItem {
+interface PracticeGoalItem {
   id: string;
   name: string;
 }
 
-interface DailyReportItem {
+interface ClassItem {
   id: string;
-  date: string;
-  totalDurationMinutes: number;
-  submissionCount: number;
-  categorySummary: string; // JSON: {"원랭스 커트": 30, "와인딩": 60}
-  memos: string; // JSON: ["메모 1", "메모 2"]
-  createdAt: string;
-  student: {
+  name: string;
+  practiceGoals: PracticeGoalItem[];
+}
+
+interface SubmissionItem {
+  id: string;
+  goalName: string;
+  durationSeconds: number;
+  memo: string | null;
+  submittedAt: string;
+  class: {
     id: string;
     name: string;
   };
-  class: {
+  student: {
     id: string;
     name: string;
   };
 }
 
+interface SubmissionSummary {
+  totalSubmissionCount: number;
+  totalDurationSeconds: number;
+}
+
+interface Pagination {
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+function formatDuration(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [
+    String(hours).padStart(2, "0"),
+    String(minutes).padStart(2, "0"),
+    String(seconds).padStart(2, "0"),
+  ].join(":");
+}
+
+function formatSubmittedAt(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
 export default function TeacherSubmissionsDashboardPage() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [searchStudentName, setSearchStudentName] = useState<string>('');
 
-  const [reports, setReports] = useState<DailyReportItem[]>([]);
-  const [summary, setSummary] = useState({
-    totalReportsCount: 0,
+  const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
+
+  const [summary, setSummary] = useState<SubmissionSummary>({
     totalSubmissionCount: 0,
-    totalDurationMinutes: 0,
+    totalDurationSeconds: 0,
   });
-  const [loading, setLoading] = useState<boolean>(true);
-  const [cleanupLoading, setCleanupLoading] = useState<boolean>(false);
+
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 30,
+    totalPages: 0,
+  });
+
+  const [selectedClassId, setSelectedClassId] = useState("");
+
+  const [selectedGoalId, setSelectedGoalId] = useState("");
+
+  const [studentName, setStudentName] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const [loading, setLoading] = useState(true);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const availableGoals = useMemo(() => {
+    if (selectedClassId) {
+      return (
+        classes.find((classItem) => classItem.id === selectedClassId)
+          ?.practiceGoals ?? []
+      );
+    }
+
+    return classes.flatMap((classItem) => classItem.practiceGoals);
+  }, [classes, selectedClassId]);
 
   useEffect(() => {
     let ignore = false;
-    async function loadData() {
-      setLoading(true);
-      setErrorMessage(null);
-      try {
-        const params = new URLSearchParams();
-        if (selectedClassId) params.append('classId', selectedClassId);
-        if (selectedDate) params.append('date', selectedDate);
-        if (searchStudentName) params.append('studentName', searchStudentName);
 
-        const res = await fetch(`/api/teacher/submissions?${params.toString()}`);
-        const data = await res.json();
+    const params = new URLSearchParams({
+      page: String(pagination.page),
+      pageSize: String(pagination.pageSize),
+    });
 
-        if (!ignore && res.ok) {
-          setReports(data.dailyReports || []);
-          setSummary(
-            data.summary || {
-              totalReportsCount: 0,
-              totalSubmissionCount: 0,
-              totalDurationMinutes: 0,
-            }
-          );
-          if (data.teacherClasses) {
-            setClasses(data.teacherClasses);
-          }
-        } else if (!ignore) {
-          setErrorMessage(data.error || '일별 레포트를 가져오는 데 실패했습니다.');
-        }
-      } catch (err) {
-        console.error('Fetch error:', err);
-        if (!ignore) setErrorMessage('서버 연결 중 오류가 발생했습니다.');
-      } finally {
-        if (!ignore) setLoading(false);
-      }
+    if (selectedClassId) {
+      params.set("classId", selectedClassId);
     }
 
-    loadData();
+    if (selectedGoalId) {
+      params.set("practiceGoalId", selectedGoalId);
+    }
+
+    if (studentName.trim()) {
+      params.set("studentName", studentName.trim());
+    }
+
+    if (fromDate) {
+      params.set("from", fromDate);
+    }
+
+    if (toDate) {
+      params.set("to", toDate);
+    }
+
+    fetch(`/api/teacher/submissions?${params.toString()}`)
+      .then(async (response) => {
+        const data = await response.json();
+
+        if (ignore) {
+          return;
+        }
+
+        if (!response.ok) {
+          setErrorMessage(data.error || "제출 기록을 불러오지 못했습니다.");
+          return;
+        }
+
+        setErrorMessage(null);
+
+        setClasses(data.teacherClasses ?? []);
+        setSubmissions(data.submissions ?? []);
+        setSummary(
+          data.summary ?? {
+            totalSubmissionCount: 0,
+            totalDurationSeconds: 0,
+          },
+        );
+
+        setPagination(
+          data.pagination ?? {
+            page: 1,
+            pageSize: 30,
+            totalPages: 0,
+          },
+        );
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        console.error("Fetch submissions error:", error);
+
+        setErrorMessage("서버 연결 중 오류가 발생했습니다.");
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
     return () => {
       ignore = true;
     };
-  }, [selectedClassId, selectedDate, searchStudentName]);
+  }, [
+    selectedClassId,
+    selectedGoalId,
+    studentName,
+    fromDate,
+    toDate,
+    pagination.page,
+    pagination.pageSize,
+  ]);
 
-  const handleRunCleanup = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!confirm('어제 자 이전의 구글 드라이브 파일과 DB 낱개 기록을 완전히 정리(삭제)하시겠습니까?\n(학생별 일별 종합 기록은 무사히 남습니다)')) {
-      return;
-    }
-
-    setCleanupLoading(true);
-    try {
-      const res = await fetch('/api/cron/cleanup', { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) {
-        alert(`🎉 ${data.message}`);
-        window.location.reload();
-      } else {
-        alert(`오류: ${data.error}`);
-      }
-    } catch (err) {
-      console.error('Cleanup trigger error:', err);
-      alert('정리 작업 호출 중 오류가 발생했습니다.');
-    } finally {
-      setCleanupLoading(false);
-    }
+  const handleClassChange = (classId: string) => {
+    setSelectedClassId(classId);
+    setSelectedGoalId("");
+    setPagination((current) => ({
+      ...current,
+      page: 1,
+    }));
   };
 
-  const handleResetFilters = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    setSelectedClassId('');
-    setSelectedDate('');
-    setSearchStudentName('');
+  const handleGoalChange = (goalId: string) => {
+    setSelectedGoalId(goalId);
+    setPagination((current) => ({
+      ...current,
+      page: 1,
+    }));
+  };
+
+  const handleResetFilters = () => {
+    setSelectedClassId("");
+    setSelectedGoalId("");
+    setStudentName("");
+    setFromDate("");
+    setToDate("");
+    setPagination((current) => ({
+      ...current,
+      page: 1,
+    }));
+  };
+
+  const handlePreviousPage = () => {
+    setPagination((current) => ({
+      ...current,
+      page: Math.max(1, current.page - 1),
+    }));
+  };
+
+  const handleNextPage = () => {
+    setPagination((current) => ({
+      ...current,
+      page: Math.min(current.totalPages, current.page + 1),
+    }));
   };
 
   return (
-    <div className="space-y-6">
-      {/* 상단 제목 & 통계 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+    <div className="space-y-5">
+      <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block">DAILY REPORTS</span>
-          <h2 className="text-xl font-black text-white">학생 일별 종합 실습 기록</h2>
+          <p className="text-xs font-semibold text-blue-600">최근 1개월</p>
+          <h2 className="mt-1 text-xl font-bold text-slate-950">제출함</h2>
         </div>
 
-        {/* 통계 요약 카드 */}
-        <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
-            <span className="text-[9px] text-slate-400 block uppercase font-semibold">총 제출</span>
-            <span className="text-sm font-bold text-indigo-400 font-mono">{summary.totalSubmissionCount}회</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="page-panel px-3 py-2 text-right">
+            <p className="text-[11px] text-slate-500">제출</p>
+            <p className="font-mono text-base font-bold text-blue-700">
+              {summary.totalSubmissionCount}회
+            </p>
           </div>
-          <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
-            <span className="text-[9px] text-slate-400 block uppercase font-semibold">총 연습시간</span>
-            <span className="text-sm font-bold text-emerald-400 font-mono">
-              {Math.floor(summary.totalDurationMinutes / 60)}시간 {summary.totalDurationMinutes % 60}분
-            </span>
+
+          <div className="page-panel px-3 py-2 text-right">
+            <p className="text-[11px] text-slate-500">총 연습시간</p>
+            <p className="font-mono text-base font-bold text-emerald-700">
+              {formatDuration(summary.totalDurationSeconds)}
+            </p>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* 필터 패널 */}
-      <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 shadow-md">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* 반 선택 */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">수업 반 선택</label>
+      <section className="page-panel p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="block">
+            <span className="mb-1 block text-xs text-slate-500">반</span>
             <select
               value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              onChange={(event) => handleClassChange(event.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             >
-              <option value="">전체 수강 반 보기</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+              <option value="">전체 반</option>
+              {classes.map((classItem) => (
+                <option key={classItem.id} value={classItem.id}>
+                  {classItem.name}
                 </option>
               ))}
             </select>
-          </div>
+          </label>
 
-          {/* 날짜 선택 */}
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-semibold text-slate-400">날짜 선택 (YYYY-MM-DD)</label>
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate('')}
-                  className="text-[10px] text-indigo-400 hover:underline font-semibold"
-                >
-                  전체 날짜
-                </button>
-              )}
-            </div>
+          <label className="block">
+            <span className="mb-1 block text-xs text-slate-500">연습 목표</span>
+            <select
+              value={selectedGoalId}
+              onChange={(event) => handleGoalChange(event.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="">전체 목표</option>
+              {availableGoals.map((goal) => (
+                <option key={goal.id} value={goal.id}>
+                  {goal.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs text-slate-500">학생</span>
+            <input
+              type="search"
+              value={studentName}
+              onChange={(event) => {
+                setStudentName(event.target.value);
+                setPagination((current) => ({
+                  ...current,
+                  page: 1,
+                }));
+              }}
+              placeholder="학생 이름"
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs text-slate-500">시작일</span>
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+              value={fromDate}
+              onChange={(event) => {
+                setFromDate(event.target.value);
+                setPagination((current) => ({
+                  ...current,
+                  page: 1,
+                }));
+              }}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             />
-          </div>
+          </label>
 
-          {/* 학생 검색 */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">학생 이름 검색</label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-slate-500">종료일</span>
             <input
-              type="text"
-              value={searchStudentName}
-              onChange={(e) => setSearchStudentName(e.target.value)}
-              placeholder="예: 김민지"
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              type="date"
+              value={toDate}
+              onChange={(event) => {
+                setToDate(event.target.value);
+                setPagination((current) => ({
+                  ...current,
+                  page: 1,
+                }));
+              }}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             />
-          </div>
+          </label>
         </div>
 
-        <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
+        <div className="mt-3 flex justify-end border-t border-slate-200 pt-3">
           <button
             type="button"
             onClick={handleResetFilters}
-            className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+            className="h-8 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100"
           >
-            <span>🔄 필터 초기화</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleRunCleanup}
-            disabled={cleanupLoading}
-            className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5"
-          >
-            <span>🗑️ 4:00 AM 파일 및 낱개 데이터 수동 정리</span>
+            필터 초기화
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* 에러 메시지 */}
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs font-semibold text-center">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center text-xs text-rose-700">
           {errorMessage}
         </div>
       )}
 
-      {/* 로딩 표시 */}
       {loading ? (
-        <div className="flex justify-center items-center py-16 text-indigo-400 text-xs gap-2">
-          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span>학생 일별 기록을 불러오는 중입니다...</span>
+        <div className="page-panel py-16 text-center text-xs text-slate-500">
+          제출 기록을 불러오는 중입니다.
         </div>
-      ) : reports.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-400 space-y-2">
-          <p className="text-base font-semibold">선택한 조건에 해당하는 학생 일별 기록이 없습니다.</p>
-          <p className="text-xs text-slate-500">
-            상단의 [🔄 필터 초기화] 버튼을 누르거나 검색 조건(날짜/학생명)을 변경해 보세요.
-          </p>
+      ) : submissions.length === 0 ? (
+        <div className="page-panel py-16 text-center text-xs text-slate-500">
+          조건에 맞는 제출 기록이 없습니다.
         </div>
       ) : (
-        /* 학생 일별 종합 기록 카드리스트 */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {reports.map((report) => {
-            let categoryMap: Record<string, number> = {};
-            let memoList: string[] = [];
-            try {
-              categoryMap = JSON.parse(report.categorySummary || '{}');
-              memoList = JSON.parse(report.memos || '[]');
-            } catch (e) {
-              console.error('JSON parse error:', e);
-            }
+        <section className="page-panel overflow-hidden">
+          <div className="hidden grid-cols-[150px_120px_1fr_140px_110px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold text-slate-500 md:grid">
+            <span>제출일시</span>
+            <span>반 / 학생</span>
+            <span>연습 목표 / 메모</span>
+            <span>연습시간</span>
+            <span>첨부</span>
+          </div>
 
-            return (
-              <div
-                key={report.id}
-                className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-indigo-500/50 transition-all flex flex-col justify-between space-y-4 shadow-lg"
+          <div className="divide-y divide-slate-100">
+            {submissions.map((submission) => (
+              <article
+                key={submission.id}
+                className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[150px_120px_1fr_140px_110px] md:items-center md:gap-4"
               >
-                <div className="space-y-3">
-                  {/* 날짜 & 학생 헤더 */}
-                  <div className="flex justify-between items-start border-b border-slate-800 pb-3">
-                    <div>
-                      <span className="text-xs font-bold text-indigo-400 font-mono block">
-                        📅 {report.date}
-                      </span>
-                      <h3 className="text-lg font-bold text-white flex items-center gap-2 mt-0.5">
-                        <span>{report.student.name}</span>
-                        <span className="text-xs font-normal text-slate-400">수강생</span>
-                      </h3>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                      {report.class.name}
-                    </span>
-                  </div>
+                <time className="font-mono text-xs text-slate-500">
+                  {formatSubmittedAt(submission.submittedAt)}
+                </time>
 
-                  {/* 하루 연습 시간 & 제출 횟수 통계 */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
-                    <div>
-                      <span className="text-slate-400 text-[11px] block">하루 총 연습시간</span>
-                      <span className="text-base font-bold text-emerald-400 font-mono">
-                        ⏱️ {Math.floor(report.totalDurationMinutes / 60) > 0 ? `${Math.floor(report.totalDurationMinutes / 60)}시간 ` : ''}
-                        {report.totalDurationMinutes % 60}분
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-400 text-[11px] block">제출 횟수</span>
-                      <span className="text-sm font-bold text-indigo-300 font-mono">
-                        총 {report.submissionCount}회 제출
-                      </span>
-                    </div>
-                  </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-950">
+                    {submission.student.name}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {submission.class.name}
+                  </p>
+                </div>
 
-                  {/* 연습 종목별 집계 내역 */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      ✂️ 종목별 연습 내역
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(categoryMap).map(([category, minutes]) => (
-                        <div
-                          key={category}
-                          className="px-3 py-1.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs flex items-center gap-2"
-                        >
-                          <span className="font-semibold text-indigo-200">{category}</span>
-                          <span className="font-bold text-emerald-300 font-mono">{minutes}분</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-blue-700">
+                    {submission.goalName}
+                  </p>
 
-                  {/* 메모 모음 */}
-                  {memoList.length > 0 && (
-                    <div className="space-y-1 pt-1">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                        📝 제출 메모 모음 ({memoList.length}건)
-                      </span>
-                      <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                        {memoList.map((m, idx) => (
-                          <p
-                            key={idx}
-                            className="p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs text-slate-300 italic"
-                          >
-                            &ldquo;{m}&rdquo;
-                          </p>
-                        ))}
-                      </div>
-                    </div>
+                  {submission.memo && (
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+                      {submission.memo}
+                    </p>
                   )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+
+                <p className="font-mono text-sm font-semibold text-emerald-700">
+                  {formatDuration(submission.durationSeconds)}
+                </p>
+
+                <p className="text-xs text-slate-500">기록만 표시</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {pagination.totalPages > 1 && (
+        <nav className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={handlePreviousPage}
+            disabled={pagination.page <= 1}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 disabled:opacity-40"
+          >
+            이전
+          </button>
+
+          <span className="font-mono text-xs text-slate-500">
+            {pagination.page} / {pagination.totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={handleNextPage}
+            disabled={pagination.page >= pagination.totalPages}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 disabled:opacity-40"
+          >
+            다음
+          </button>
+        </nav>
       )}
     </div>
   );

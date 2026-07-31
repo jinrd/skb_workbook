@@ -1,5 +1,5 @@
-import { google } from 'googleapis';
-import { Readable } from 'node:stream';
+import { google } from "googleapis";
+import { Readable } from "node:stream";
 
 /**
  * Google Drive API 서비스 계정 인증 클라이언트 얻기
@@ -10,20 +10,22 @@ export function getGoogleDriveClient() {
   const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Google Drive OAuth 2.0 credentials are not fully set in environment variables.');
+    throw new Error(
+      "Google Drive OAuth 2.0 credentials are not fully set in environment variables.",
+    );
   }
 
   const oauth2Client = new google.auth.OAuth2(
     clientId,
     clientSecret,
-    'https://developers.google.com/oauthplayground' // Redirect URI
+    "https://developers.google.com/oauthplayground", // Redirect URI
   );
 
   oauth2Client.setCredentials({
     refresh_token: refreshToken,
   });
 
-  return google.drive({ version: 'v3', auth: oauth2Client });
+  return google.drive({ version: "v3", auth: oauth2Client });
 }
 
 /**
@@ -37,12 +39,15 @@ export function buildFormattedFileName(params: {
 }): string {
   const { studentName, className, originalFileName } = params;
 
-  const safeStudent = studentName.replace(/[\\/:*?"<>|]/g, '');
-  const safeClass = className.replace(/[\\/:*?"<>|]/g, '');
-  const safeOriginal = originalFileName.replace(/[\\/:*?"<>|]/g, '_');
+  const safeStudent = studentName.replace(/[\\/:*?"<>|]/g, "");
+  const safeClass = className.replace(/[\\/:*?"<>|]/g, "");
+  const safeOriginal = originalFileName.replace(/[\\/:*?"<>|]/g, "_");
 
   const now = new Date();
-  const dateStr = now.toISOString().replace(/[-T:.Z]/g, '').substring(0, 14);
+  const dateStr = now
+    .toISOString()
+    .replace(/[-T:.Z]/g, "")
+    .substring(0, 14);
 
   return `[${safeStudent}]_[${safeClass}]_${dateStr}_${safeOriginal}`;
 }
@@ -59,7 +64,9 @@ export async function uploadStreamToGoogleDrive(params: {
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
   if (!folderId) {
-    throw new Error('GOOGLE_DRIVE_FOLDER_ID environment variable is not defined.');
+    throw new Error(
+      "GOOGLE_DRIVE_FOLDER_ID environment variable is not defined.",
+    );
   }
 
   const response = await drive.files.create({
@@ -73,11 +80,11 @@ export async function uploadStreamToGoogleDrive(params: {
     },
     supportsAllDrives: true,
     supportsTeamDrives: true,
-    fields: 'id, name, size',
+    fields: "id, name, size",
   });
 
   if (!response.data.id) {
-    throw new Error('Failed to upload file to Google Drive.');
+    throw new Error("Failed to upload file to Google Drive.");
   }
 
   return {
@@ -89,13 +96,35 @@ export async function uploadStreamToGoogleDrive(params: {
 /**
  * Google Drive 파일 완전 삭제 (일일 Cleanup 작업용)
  */
-export async function deleteFileFromGoogleDrive(fileId: string): Promise<boolean> {
+export async function deleteFileFromGoogleDrive(
+  fileId: string,
+): Promise<boolean> {
   try {
     const drive = getGoogleDriveClient();
-    await drive.files.delete({ fileId, supportsAllDrives: true, supportsTeamDrives: true });
+
+    await drive.files.delete({
+      fileId,
+      supportsAllDrives: true,
+      supportsTeamDrives: true,
+    });
+
     return true;
   } catch (error) {
+    const status =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "number"
+        ? error.code
+        : null;
+
+    // Drive에 파일이 이미 없다면 삭제된 것으로 처리한다.
+    if (status === 404) {
+      return true;
+    }
+
     console.error(`Failed to delete Google Drive file (${fileId}):`, error);
+
     return false;
   }
 }

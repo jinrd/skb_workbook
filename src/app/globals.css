@@ -2,38 +2,20 @@
 
 @layer base {
   :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+    --background: #f6f7f4;
+    --foreground: #18211f;
     --card: #ffffff;
-    --card-foreground: #0f172a;
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
+    --card-foreground: #18211f;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
     --primary-foreground: #ffffff;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #334155;
-    --accent: #ec4899;
-    --muted: #64748b;
-    --muted-light: #94a3b8;
-    --border: #e2e8f0;
-    --radius: 0.75rem;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: #0f172a;
-      --foreground: #f8fafc;
-      --card: #1e293b;
-      --card-foreground: #f8fafc;
-      --primary: #6366f1;
-      --primary-hover: #818cf8;
-      --primary-foreground: #ffffff;
-      --secondary: #334155;
-      --secondary-foreground: #cbd5e1;
-      --accent: #f472b6;
-      --muted: #94a3b8;
-      --muted-light: #64748b;
-      --border: #334155;
-    }
+    --secondary: #eef2f1;
+    --secondary-foreground: #33423f;
+    --accent: #059669;
+    --muted: #64706d;
+    --muted-light: #98a29f;
+    --border: #dfe6e2;
+    --radius: 0.5rem;
   }
 
   * {
@@ -49,19 +31,22 @@
   }
 }
 
-/* Glassmorphism & Custom Card Utility */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(223, 230, 226, 0.9);
+  box-shadow: 0 12px 30px rgba(24, 33, 31, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  .glass-panel {
-    background: rgba(30, 41, 59, 0.85);
-    border: 1px solid rgba(51, 65, 85, 0.8);
-  }
+.page-panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 24px rgba(24, 33, 31, 0.05);
+}
+
+.mobile-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Custom Scrollbar */

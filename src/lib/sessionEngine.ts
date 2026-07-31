@@ -1,5 +1,5 @@
-import { prisma } from '@/lib/prisma';
-import { getSeoulNow } from '@/lib/timezone';
+import { prisma } from "@/lib/prisma";
+import { getSeoulNow } from "@/lib/timezone";
 
 export interface SessionSnapshotData {
   className: string;
@@ -9,13 +9,15 @@ export interface SessionSnapshotData {
   gracePeriodMinutes: number;
   maxFilesPerSub: number;
   maxFileSizeMB: number;
-  categories: { id: string; name: string }[];
-  enrolledStudents: { studentId: string; name: string }[];
+  goals: { id: string; name: string }[];
+  enrolledStudents: {
+    studentId: string;
+    name: string;
+  }[];
   snapshotCreatedAt: string;
 }
-
 /**
- * 반 설정을 변경할 때 최신 버전을 저장하고, 
+ * 반 설정을 변경할 때 최신 버전을 저장하고,
  * 현재 진행 중인 활성 수업 회차(ClassSession)가 있다면 즉시 함께 반영하는 함수 (사용자 직접 요구 반영)
  */
 export async function createNewClassSettingVersion(params: {
@@ -44,13 +46,14 @@ export async function createNewClassSettingVersion(params: {
   // 1. 현재 최신 버전 조회
   const latestVersion = await prisma.classSettingVersion.findFirst({
     where: { classId },
-    orderBy: { version: 'desc' },
+    orderBy: { version: "desc" },
   });
 
   const nextVersionNumber = (latestVersion?.version || 0) + 1;
 
   const finalPreEntry = preEntryMinutes ?? latestVersion?.preEntryMinutes ?? 10;
-  const finalGrace = gracePeriodMinutes ?? latestVersion?.gracePeriodMinutes ?? 10;
+  const finalGrace =
+    gracePeriodMinutes ?? latestVersion?.gracePeriodMinutes ?? 10;
   const finalMaxFiles = maxFilesPerSub ?? latestVersion?.maxFilesPerSub ?? 5;
   const finalMaxFileSize = maxFileSizeMB ?? latestVersion?.maxFileSizeMB ?? 10;
 
@@ -85,21 +88,21 @@ export async function createNewClassSettingVersion(params: {
   const activeSessions = await prisma.classSession.findMany({
     where: {
       classId,
-      status: { in: ['OPEN', 'EXTENDED'] },
+      status: { in: ["OPEN", "EXTENDED"] },
     },
   });
 
   for (const session of activeSessions) {
     try {
       let snapshotObj: SessionSnapshotData = {
-        className: '',
+        className: "",
         version: nextVersionNumber,
         settingVersionId: newSettingVersion.id,
         preEntryMinutes: finalPreEntry,
         gracePeriodMinutes: finalGrace,
         maxFilesPerSub: finalMaxFiles,
         maxFileSizeMB: finalMaxFileSize,
-        categories: [],
+        goals: [],
         enrolledStudents: [],
         snapshotCreatedAt: now.toISOString(),
       };
@@ -117,8 +120,12 @@ export async function createNewClassSettingVersion(params: {
       }
 
       // 사전접속 및 유예 시각 재계산
-      const newAllowedStart = new Date(session.scheduledStartTime.getTime() - finalPreEntry * 60 * 1000);
-      const newAllowedEnd = new Date(session.scheduledEndTime.getTime() + finalGrace * 60 * 1000);
+      const newAllowedStart = new Date(
+        session.scheduledStartTime.getTime() - finalPreEntry * 60 * 1000,
+      );
+      const newAllowedEnd = new Date(
+        session.scheduledEndTime.getTime() + finalGrace * 60 * 1000,
+      );
 
       await prisma.classSession.update({
         where: { id: session.id },
@@ -130,7 +137,7 @@ export async function createNewClassSettingVersion(params: {
         },
       });
     } catch (e) {
-      console.error('Active session instant update error:', e);
+      console.error("Active session instant update error:", e);
     }
   }
 
@@ -138,7 +145,8 @@ export async function createNewClassSettingVersion(params: {
 }
 
 /**
- * 수업 회차(ClassSession)를 생성할 때 해당 시점의 반 설정/학생/종목 스냅샷 복사 저장
+ * 수업 회차를 생성할 때 해당 시점의 반 설정, 학생, 목표를
+ * 스냅샷으로 복사하여 저장합니다.
  */
 export async function createClassSessionSnapshot(params: {
   classId: string;
@@ -148,13 +156,23 @@ export async function createClassSessionSnapshot(params: {
   actualAllowedStart: Date;
   actualAllowedEnd: Date;
 }) {
-  const { classId, date, scheduledStartTime, scheduledEndTime, actualAllowedStart, actualAllowedEnd } = params;
+  const {
+    classId,
+    date,
+    scheduledStartTime,
+    scheduledEndTime,
+    actualAllowedStart,
+    actualAllowedEnd,
+  } = params;
 
   const targetClass = await prisma.class.findUnique({
     where: { id: classId },
     include: {
-      settingVersions: { orderBy: { version: 'desc' }, take: 1 },
-      practiceCategories: { where: { isActive: true } },
+      settingVersions: { orderBy: { version: "desc" }, take: 1 },
+      practiceGoals: {
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+      },
       enrollments: {
         where: { droppedAt: null },
         include: { student: { select: { id: true, name: true } } },
@@ -163,7 +181,7 @@ export async function createClassSessionSnapshot(params: {
   });
 
   if (!targetClass) {
-    throw new Error('Target class not found.');
+    throw new Error("Target class not found.");
   }
 
   const latestSetting = targetClass.settingVersions[0];
@@ -171,13 +189,19 @@ export async function createClassSessionSnapshot(params: {
   const snapshotDataObj: SessionSnapshotData = {
     className: targetClass.name,
     version: latestSetting?.version || 1,
-    settingVersionId: latestSetting?.id || '',
+    settingVersionId: latestSetting?.id || "",
     preEntryMinutes: latestSetting?.preEntryMinutes ?? 10,
     gracePeriodMinutes: latestSetting?.gracePeriodMinutes ?? 10,
     maxFilesPerSub: latestSetting?.maxFilesPerSub ?? 5,
     maxFileSizeMB: latestSetting?.maxFileSizeMB ?? 10,
-    categories: targetClass.practiceCategories.map((c) => ({ id: c.id, name: c.name })),
-    enrolledStudents: targetClass.enrollments.map((e) => ({ studentId: e.student.id, name: e.student.name })),
+    goals: targetClass.practiceGoals.map((c) => ({
+      id: c.id,
+      name: c.name,
+    })),
+    enrolledStudents: targetClass.enrollments.map((e) => ({
+      studentId: e.student.id,
+      name: e.student.name,
+    })),
     snapshotCreatedAt: getSeoulNow().toISOString(),
   };
 
@@ -190,7 +214,7 @@ export async function createClassSessionSnapshot(params: {
       scheduledEndTime,
       actualAllowedStart,
       actualAllowedEnd,
-      status: 'OPEN',
+      status: "OPEN",
       snapshotData: JSON.stringify(snapshotDataObj),
     },
   });

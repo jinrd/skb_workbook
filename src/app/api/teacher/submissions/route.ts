@@ -1,175 +1,241 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getTeacherSession } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getTeacherSession } from "@/lib/auth";
 
-/**
- * 낱개 Submission 데이터를 기반으로 DailyStudentReport를 무한 누적이 아닌 '정확히 재계산(Recalculate)'하는 안전한 백필 함수
- */
-export async function recalculateDailyReportsFromSubmissions() {
-  try {
-    const submissions = await prisma.submission.findMany({
-      include: {
-        classSession: {
-          select: { classId: true },
-        },
-      },
-    });
+function subtractOneMonth(date: Date): Date {
+  const result = new Date(date);
+  const originalDay = result.getDate();
 
-    // studentId_classId_date -> 집계 객체 맵
-    const reportMap = new Map<string, {
-      studentId: string;
-      classId: string;
-      date: string;
-      totalDurationMinutes: number;
-      submissionCount: number;
-      categorySummaryMap: Record<string, number>;
-      memosSet: Set<string>;
-    }>();
+  result.setDate(1);
+  result.setMonth(result.getMonth() - 1);
 
-    for (const sub of submissions) {
-      const dateStr = sub.submittedAt.toISOString().split('T')[0];
-      const classId = sub.classSession.classId;
-      const studentId = sub.studentId;
-      const key = `${studentId}_${classId}_${dateStr}`;
+  const lastDay = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0,
+  ).getDate();
 
-      if (!reportMap.has(key)) {
-        reportMap.set(key, {
-          studentId,
-          classId,
-          date: dateStr,
-          totalDurationMinutes: 0,
-          submissionCount: 0,
-          categorySummaryMap: {},
-          memosSet: new Set(),
-        });
-      }
+  result.setDate(Math.min(originalDay, lastDay));
 
-      const item = reportMap.get(key)!;
-      item.totalDurationMinutes += sub.durationMinutes;
-      item.submissionCount += 1;
-      item.categorySummaryMap[sub.categoryName] = (item.categorySummaryMap[sub.categoryName] || 0) + sub.durationMinutes;
-      if (sub.content && sub.content.trim()) {
-        item.memosSet.add(sub.content.trim());
-      }
-    }
+  return result;
+}
 
-    // 데이터베이스에 정확히 덮어쓰기 (Upsert)
-    for (const item of reportMap.values()) {
-      await prisma.dailyStudentReport.upsert({
-        where: {
-          studentId_classId_date: {
-            studentId: item.studentId,
-            classId: item.classId,
-            date: item.date,
-          },
-        },
-        update: {
-          totalDurationMinutes: item.totalDurationMinutes,
-          submissionCount: item.submissionCount,
-          categorySummary: JSON.stringify(item.categorySummaryMap),
-          memos: JSON.stringify(Array.from(item.memosSet)),
-        },
-        create: {
-          studentId: item.studentId,
-          classId: item.classId,
-          date: item.date,
-          totalDurationMinutes: item.totalDurationMinutes,
-          submissionCount: item.submissionCount,
-          categorySummary: JSON.stringify(item.categorySummaryMap),
-          memos: JSON.stringify(Array.from(item.memosSet)),
-        },
-      });
-    }
-  } catch (err) {
-    console.error('Recalculate daily reports error:', err);
+function parseStartDate(value: string | null): Date | null {
+  if (!value) {
+    return null;
   }
+
+  const date = new Date(`${value}T00:00:00+09:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseEndDate(value: string | null): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00+09:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  date.setDate(date.getDate() + 1);
+  return date;
 }
 
 export async function GET(request: Request) {
   try {
     const session = await getTeacherSession();
+
     if (!session) {
-      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+      return NextResponse.json(
+        { error: "인증이 필요합니다." },
+        { status: 401 },
+      );
     }
 
     const { searchParams } = new URL(request.url);
-    const classId = searchParams.get('classId');
-    const dateStr = searchParams.get('date'); // YYYY-MM-DD
-    const studentName = searchParams.get('studentName');
 
-    // 1. 강사 소유 클래스 안전 조회 (ADMIN은 전체 반, 일반 강사는 본인 담당 반)
+    const classId = searchParams.get("classId");
+    const studentName = searchParams.get("studentName")?.trim() ?? "";
+    const practiceGoalId = searchParams.get("practiceGoalId");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+
+    const requestedPage = Number(searchParams.get("page") ?? "1");
+
+    const requestedPageSize = Number(searchParams.get("pageSize") ?? "30");
+
+    const page =
+      Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+
+    const pageSize =
+      Number.isInteger(requestedPageSize) && requestedPageSize > 0
+        ? Math.min(requestedPageSize, 100)
+        : 30;
+
     const teacherClasses = await prisma.class.findMany({
-      where: session.role === 'ADMIN' ? {} : { teacherId: session.teacherId },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
+      where: session.role === "ADMIN" ? {} : { teacherId: session.teacherId },
+      select: {
+        id: true,
+        name: true,
+        practiceGoals: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+      orderBy: {
+        name: "asc",
+      },
     });
 
-    const allowedClassIds = teacherClasses.map((c) => c.id);
+    const allowedClassIds = teacherClasses.map((classItem) => classItem.id);
 
-    // 일반 강사인데 소유한 반이 없는 경우 빈 결과 반환
-    if (session.role !== 'ADMIN' && allowedClassIds.length === 0) {
-      return NextResponse.json({
-        dailyReports: [],
-        summary: { totalReportsCount: 0, totalSubmissionCount: 0, totalDurationMinutes: 0 },
-        teacherClasses: [],
-      });
+    if (
+      classId &&
+      session.role !== "ADMIN" &&
+      !allowedClassIds.includes(classId)
+    ) {
+      return NextResponse.json(
+        {
+          error: "해당 반의 제출물을 조회할 권한이 없습니다.",
+        },
+        { status: 403 },
+      );
     }
 
-    // 2. 검색 조건 구성 (DailyStudentReport 기준)
-    const whereCondition: Record<string, unknown> = {};
+    const now = new Date();
+    const retentionStart = subtractOneMonth(now);
+
+    const requestedStart = parseStartDate(from);
+    const requestedEnd = parseEndDate(to);
+
+    const startDate =
+      requestedStart && requestedStart > retentionStart
+        ? requestedStart
+        : retentionStart;
+
+    if (requestedEnd && requestedEnd <= startDate) {
+      return NextResponse.json(
+        {
+          error: "조회 종료일은 시작일보다 이후여야 합니다.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const where: Prisma.SubmissionWhereInput = {
+      submittedAt: {
+        gte: startDate,
+        ...(requestedEnd ? { lt: requestedEnd } : { lte: now }),
+      },
+    };
 
     if (classId) {
-      if (session.role !== 'ADMIN' && !allowedClassIds.includes(classId)) {
-        return NextResponse.json({ error: '해당 반의 제출물을 조회할 권한이 없습니다.' }, { status: 403 });
-      }
-      whereCondition.classId = classId;
-    } else if (session.role !== 'ADMIN') {
-      whereCondition.classId = { in: allowedClassIds };
-    }
-
-    if (dateStr) {
-      whereCondition.date = dateStr;
-    }
-
-    if (studentName && studentName.trim() !== '') {
-      whereCondition.student = {
-        name: { contains: studentName.trim() },
+      where.classId = classId;
+    } else if (session.role !== "ADMIN") {
+      where.classId = {
+        in: allowedClassIds,
       };
     }
 
-    const dailyReports = await prisma.dailyStudentReport.findMany({
-      where: whereCondition,
-      include: {
-        student: {
-          select: { id: true, name: true },
+    if (studentName) {
+      where.student = {
+        name: {
+          contains: studentName,
+          mode: "insensitive",
         },
-        class: {
-          select: { id: true, name: true },
-        },
-      },
-      orderBy: [
-        { date: 'desc' },
-        { createdAt: 'desc' },
-      ],
-    });
+      };
+    }
 
-    const totalDurationMinutes = dailyReports.reduce((sum, r) => sum + (r.totalDurationMinutes || 0), 0);
-    const totalSubmissionCount = dailyReports.reduce((sum, r) => sum + (r.submissionCount || 0), 0);
+    if (practiceGoalId) {
+      where.practiceGoalId = practiceGoalId;
+    }
+
+    const [submissions, totalSubmissionCount, durationAggregate] =
+      await Promise.all([
+        prisma.submission.findMany({
+          where,
+          include: {
+            class: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            student: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            practiceGoal: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            files: {
+              orderBy: {
+                createdAt: "asc",
+              },
+            },
+          },
+          orderBy: {
+            submittedAt: "desc",
+          },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+
+        prisma.submission.count({
+          where,
+        }),
+
+        prisma.submission.aggregate({
+          where,
+          _sum: {
+            durationSeconds: true,
+          },
+        }),
+      ]);
 
     return NextResponse.json({
-      dailyReports,
+      submissions,
       summary: {
-        totalReportsCount: dailyReports.length,
         totalSubmissionCount,
-        totalDurationMinutes,
+        totalDurationSeconds: durationAggregate._sum.durationSeconds ?? 0,
+      },
+      pagination: {
+        page,
+        pageSize,
+        totalPages: Math.ceil(totalSubmissionCount / pageSize),
+      },
+      filters: {
+        retentionStart: retentionStart.toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: requestedEnd?.toISOString() ?? now.toISOString(),
       },
       teacherClasses,
     });
   } catch (error) {
-    console.error('Fetch teacher daily reports error:', error);
+    console.error("Fetch teacher submissions error:", error);
+
     return NextResponse.json(
-      { error: '학생 일별 종합 기록을 불러오는 중 오류가 발생했습니다.' },
-      { status: 500 }
+      {
+        error: "학생 제출 기록을 불러오는 중 오류가 발생했습니다.",
+      },
+      { status: 500 },
     );
   }
 }
