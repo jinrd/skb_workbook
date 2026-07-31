@@ -157,7 +157,7 @@ export default function StudentRecordsPage({
 
   if (loading) {
     return (
-      <div className="border border-slate-800 bg-slate-900 py-16 text-center text-xs text-slate-400">
+      <div className="page-panel py-16 text-center text-xs text-slate-500">
         학생 기록을 불러오는 중입니다.
       </div>
     );
@@ -168,12 +168,12 @@ export default function StudentRecordsPage({
       <div className="space-y-4">
         <Link
           href="/teacher/dashboard/students"
-          className="inline-flex h-9 items-center border border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
+          className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
         >
           학생 목록
         </Link>
 
-        <div className="border border-rose-500/30 bg-rose-500/10 p-4 text-center text-xs text-rose-200">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-center text-xs text-rose-700">
           {errorMessage || "학생 기록을 찾을 수 없습니다."}
         </div>
       </div>
@@ -182,32 +182,32 @@ export default function StudentRecordsPage({
 
   return (
     <div className="space-y-5">
-      <header className="border-b border-slate-800 pb-4">
+      <header className="border-b border-slate-200 pb-4">
         <Link
           href="/teacher/dashboard/students"
-          className="text-xs text-slate-400 hover:text-white"
+          className="text-xs text-blue-600 hover:underline"
         >
           학생 목록
         </Link>
 
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold text-indigo-300">
+            <p className="text-xs font-semibold text-blue-600">
               최근 1개월 기록
             </p>
 
-            <h2 className="mt-1 text-xl font-bold text-white">
+            <h2 className="mt-1 text-xl font-bold text-slate-950">
               {recordData.student.name}
             </h2>
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-xs text-slate-400">수강 반</span>
+            <span className="mb-1 block text-xs text-slate-500">수강 반</span>
 
             <select
               value={selectedClassId}
               onChange={(event) => setSelectedClassId(event.target.value)}
-              className="h-10 min-w-44 border border-slate-700 bg-slate-950 px-3 text-xs text-white focus:border-indigo-500 focus:outline-none"
+              className="h-10 min-w-44 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             >
               <option value="">전체 반</option>
 
@@ -222,30 +222,30 @@ export default function StudentRecordsPage({
       </header>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="border border-slate-800 bg-slate-900 p-3">
-          <p className="text-[11px] text-slate-400">수강 반</p>
-          <p className="mt-1 font-mono text-lg font-bold text-white">
+        <div className="page-panel p-3">
+          <p className="text-[11px] text-slate-500">수강 반</p>
+          <p className="mt-1 font-mono text-lg font-bold text-slate-950">
             {recordData.summary.classCount}
           </p>
         </div>
 
-        <div className="border border-slate-800 bg-slate-900 p-3">
-          <p className="text-[11px] text-slate-400">제출 횟수</p>
-          <p className="mt-1 font-mono text-lg font-bold text-indigo-300">
+        <div className="page-panel p-3">
+          <p className="text-[11px] text-slate-500">제출 횟수</p>
+          <p className="mt-1 font-mono text-lg font-bold text-blue-700">
             {displayedSubmissions.length}
           </p>
         </div>
 
-        <div className="border border-slate-800 bg-slate-900 p-3">
-          <p className="text-[11px] text-slate-400">총 연습시간</p>
-          <p className="mt-1 font-mono text-lg font-bold text-emerald-300">
+        <div className="page-panel p-3">
+          <p className="text-[11px] text-slate-500">총 연습시간</p>
+          <p className="mt-1 font-mono text-lg font-bold text-emerald-700">
             {formatDuration(displayedDurationSeconds)}
           </p>
         </div>
 
-        <div className="border border-slate-800 bg-slate-900 p-3">
-          <p className="text-[11px] text-slate-400">최근 제출</p>
-          <p className="mt-1 text-xs font-semibold text-slate-200">
+        <div className="page-panel p-3">
+          <p className="text-[11px] text-slate-500">최근 제출</p>
+          <p className="mt-1 text-xs font-semibold text-slate-700">
             {formatDateTime(
               selectedClassId
                 ? (displayedSubmissions[0]?.submittedAt ?? null)
@@ -255,33 +255,33 @@ export default function StudentRecordsPage({
         </div>
       </section>
 
-      <section className="border border-slate-800 bg-slate-900">
-        <div className="border-b border-slate-800 px-4 py-3">
-          <h3 className="text-sm font-bold text-white">반별 요약</h3>
+      <section className="page-panel overflow-hidden">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h3 className="text-sm font-bold text-slate-950">반별 요약</h3>
         </div>
 
         {recordData.classSummaries.length === 0 ? (
-          <p className="p-4 text-xs text-slate-400">
+          <p className="p-4 text-xs text-slate-500">
             최근 1개월 제출 기록이 없습니다.
           </p>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-100">
             {recordData.classSummaries.map((item) => (
               <div
                 key={item.classId}
                 className="grid grid-cols-[1fr_auto] gap-3 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-sm font-semibold text-slate-950">
                     {item.className}
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500">
                     제출 {item.submissionCount}회 · 최근 제출{" "}
                     {formatDateTime(item.lastSubmittedAt)}
                   </p>
                 </div>
 
-                <p className="font-mono text-sm font-semibold text-emerald-300">
+                <p className="font-mono text-sm font-semibold text-emerald-700">
                   {formatDuration(item.totalDurationSeconds)}
                 </p>
               </div>
@@ -290,40 +290,40 @@ export default function StudentRecordsPage({
         )}
       </section>
 
-      <section className="overflow-hidden border border-slate-800">
-        <div className="border-b border-slate-800 bg-slate-950 px-4 py-3">
-          <h3 className="text-sm font-bold text-white">제출 기록</h3>
+      <section className="page-panel overflow-hidden">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <h3 className="text-sm font-bold text-slate-950">제출 기록</h3>
         </div>
 
         {displayedSubmissions.length === 0 ? (
-          <p className="bg-slate-900 p-8 text-center text-xs text-slate-400">
+          <p className="p-8 text-center text-xs text-slate-500">
             조건에 맞는 제출 기록이 없습니다.
           </p>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-100">
             {displayedSubmissions.map((submission) => (
               <article
                 key={submission.id}
-                className="space-y-2 bg-slate-900 px-4 py-4"
+                className="space-y-2 bg-white px-4 py-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-indigo-200">
+                    <p className="text-sm font-semibold text-blue-700">
                       {submission.goalName}
                     </p>
 
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500">
                       {submission.class.name}
                     </p>
                   </div>
 
-                  <p className="shrink-0 font-mono text-sm font-semibold text-emerald-300">
+                  <p className="shrink-0 font-mono text-sm font-semibold text-emerald-700">
                     {formatDuration(submission.durationSeconds)}
                   </p>
                 </div>
 
                 {submission.memo && (
-                  <p className="whitespace-pre-wrap text-xs leading-5 text-slate-300">
+                  <p className="whitespace-pre-wrap text-xs leading-5 text-slate-700">
                     {submission.memo}
                   </p>
                 )}

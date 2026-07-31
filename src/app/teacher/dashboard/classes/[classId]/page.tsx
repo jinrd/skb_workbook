@@ -316,7 +316,7 @@ export default function ClassDetailPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 p-6 flex items-center justify-center text-sm">
+      <div className="page-panel flex items-center justify-center p-8 text-sm text-slate-500">
         반 상세 정보를 불러오는 중입니다...
       </div>
     );
@@ -324,11 +324,11 @@ export default function ClassDetailPage({
 
   if (!classDetail) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 p-6 flex flex-col items-center justify-center space-y-4">
-        <p className="text-slate-400">반 정보를 찾을 수 없습니다.</p>
+      <div className="page-panel flex flex-col items-center justify-center space-y-4 p-8">
+        <p className="text-slate-500">반 정보를 찾을 수 없습니다.</p>
         <Link
           href="/teacher/dashboard/classes"
-          className="text-indigo-400 hover:underline text-xs"
+          className="text-xs text-blue-600 hover:underline"
         >
           ← 반 목록으로 돌아가기
         </Link>
@@ -337,22 +337,21 @@ export default function ClassDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-6">
+    <div className="space-y-6 text-slate-900">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* 상단 네비게이션 */}
-        <header className="py-4 border-b border-slate-800 space-y-2">
+        <header className="border-b border-slate-200 py-4 space-y-2">
           <Link
             href="/teacher/dashboard/classes"
-            className="text-xs text-indigo-400 hover:underline"
+            className="text-xs text-blue-600 hover:underline"
           >
             ← 반 목록으로 돌아가기
           </Link>
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-white">
+              <h1 className="text-2xl font-bold text-slate-950">
                 {classDetail.name} 관리
               </h1>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 담당 강사: {classDetail.teacher.name} (
                 {classDetail.teacher.loginId})
               </p>
@@ -360,48 +359,47 @@ export default function ClassDetailPage({
           </div>
         </header>
 
-        {/* 탭 네비게이션 */}
-        <div className="flex border-b border-slate-800 text-sm font-semibold">
+        <div className="mobile-scroll flex border-b border-slate-200 text-sm font-semibold">
           <button
             onClick={() => setActiveTab("students")}
             className={`py-3 px-5 border-b-2 transition-colors ${
               activeTab === "students"
-                ? "border-indigo-500 text-indigo-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
-            👨‍🎓 학생 명단 ({classDetail.enrollments.length}명)
+            학생 명단 ({classDetail.enrollments.length}명)
           </button>
           <button
             onClick={() => setActiveTab("goals")}
             className={`py-3 px-5 border-b-2 transition-colors ${
               activeTab === "goals"
-                ? "border-indigo-500 text-indigo-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
-            ✂️ 연습 종목 (
+            연습 종목 (
             {classDetail.practiceGoals.filter((goal) => goal.isActive).length}개)
           </button>
           <button
             onClick={() => setActiveTab("schedules")}
             className={`py-3 px-5 border-b-2 transition-colors ${
               activeTab === "schedules"
-                ? "border-indigo-500 text-indigo-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
-            ⏰ 정규 시간표 ({classDetail.schedules.length}개)
+            정규 시간표 ({classDetail.schedules.length}개)
           </button>
           <button
             onClick={() => setActiveTab("settings")}
             className={`py-3 px-5 border-b-2 transition-colors ${
               activeTab === "settings"
-                ? "border-indigo-500 text-indigo-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
-            ⚙️ 반 설정 (실시간 즉시 적용)
+            반 설정 (실시간 즉시 적용)
           </button>
         </div>
 
@@ -409,22 +407,22 @@ export default function ClassDetailPage({
         {activeTab === "students" && (
           <div className="space-y-6">
             {/* 학생 추가 버튼 */}
-            <div className="flex justify-between items-center bg-slate-800/40 p-4 rounded-2xl border border-slate-800">
-              <h3 className="text-sm font-bold text-white">
+            <div className="page-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-sm font-bold text-slate-950">
                 이 반에 수강할 학생 배정
               </h3>
               <button
                 onClick={openEnrollModal}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-500"
               >
-                + 전역 학생 목록에서 배정하기
+                전역 학생 목록에서 배정하기
               </button>
             </div>
 
             {/* 학생 목록 (모바일 친화적 카드 레이아웃) */}
             <div className="space-y-3">
               {classDetail.enrollments.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 text-xs glass-panel rounded-2xl border border-slate-800">
+                <div className="page-panel p-8 text-center text-xs text-slate-500">
                   배정된 학생이 없습니다.
                 </div>
               ) : (
@@ -432,36 +430,36 @@ export default function ClassDetailPage({
                   {classDetail.enrollments.map((e) => (
                     <div
                       key={e.id}
-                      className="p-4 rounded-2xl glass-panel border border-slate-800 flex flex-col space-y-3"
+                      className="page-panel flex flex-col space-y-3 p-4"
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-bold text-white text-base">
+                          <h4 className="text-base font-bold text-slate-950">
                             {e.student.name}
                           </h4>
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-500">
                             등록일:{" "}
                             {new Date(e.enrolledAt).toLocaleDateString("ko-KR")}
                           </span>
                         </div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                           정상 수강
                         </span>
                       </div>
 
-                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/60 mt-auto">
+                      <div className="mt-auto flex justify-end gap-2 border-t border-slate-200 pt-2">
                         <button
                           onClick={() => {
                             setResetPinStudentId(e.student.id);
                             setResetPinValue("");
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-medium transition-colors"
+                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-medium text-blue-700 transition-colors hover:bg-blue-100"
                         >
                           PIN 재설정
                         </button>
                         <button
                           onClick={() => handleDropStudent(e.student.id)}
-                          className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[11px] font-medium transition-colors"
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-600 transition-colors hover:bg-rose-100"
                         >
                           반 제외
                         </button>
@@ -477,23 +475,23 @@ export default function ClassDetailPage({
         {/* 탭 2: 연습 종목 관리 */}
         {activeTab === "goals" && (
           <div className="space-y-6">
-            <div className="p-5 rounded-2xl glass-panel border border-slate-800 space-y-3">
-              <h3 className="text-sm font-bold text-white">
+            <div className="page-panel space-y-3 p-5">
+              <h3 className="text-sm font-bold text-slate-950">
                 신규 연습 종목 등록
               </h3>
-              <form onSubmit={handleAddGoal} className="flex gap-3">
+              <form onSubmit={handleAddGoal} className="flex flex-col gap-3 sm:flex-row">
                 <input
                   type="text"
                   required
                   value={newGoalName}
                   onChange={(e) => setNewGoalName(e.target.value)}
                   placeholder="연습 종목명 (예: 여성 숏커트, 핑거웨이브 등)"
-                  className="flex-1 px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="submit"
                   disabled={addingGoal}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
                 >
                   {addingGoal ? "추가 중..." : "목표 추가"}
                 </button>
@@ -506,14 +504,14 @@ export default function ClassDetailPage({
                 .map((goal) => (
                   <div
                     key={goal.id}
-                    className="p-4 rounded-xl glass-panel border border-slate-800 flex justify-between items-center"
+                    className="page-panel flex items-center justify-between p-4"
                   >
-                    <span className="font-semibold text-sm text-slate-200">
+                    <span className="text-sm font-semibold text-slate-800">
                       {goal.name}
                     </span>
                     <button
                       onClick={() => handleDeleteGoal(goal.id)}
-                      className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs transition-colors"
+                      className="rounded border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs text-rose-600 transition-colors hover:bg-rose-100"
                     >
                       비활성화
                     </button>
@@ -526,8 +524,8 @@ export default function ClassDetailPage({
         {/* 탭 3: 정규 시간표 관리 */}
         {activeTab === "schedules" && (
           <div className="space-y-6">
-            <div className="p-5 rounded-2xl glass-panel border border-slate-800 space-y-3">
-              <h3 className="text-sm font-bold text-white">정규 시간표 추가</h3>
+            <div className="page-panel space-y-3 p-5">
+              <h3 className="text-sm font-bold text-slate-950">정규 시간표 추가</h3>
               <form
                 onSubmit={handleAddSchedule}
                 className="grid grid-cols-1 sm:grid-cols-4 gap-3"
@@ -535,7 +533,7 @@ export default function ClassDetailPage({
                 <select
                   value={schedDay}
                   onChange={(e) => setSchedDay(Number(e.target.value))}
-                  className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {dayNames.map((name, idx) => (
                     <option key={idx} value={idx}>
@@ -550,7 +548,7 @@ export default function ClassDetailPage({
                   value={schedStart}
                   onChange={(e) => setSchedStart(e.target.value)}
                   placeholder="시작 (14:00)"
-                  className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <input
@@ -559,13 +557,13 @@ export default function ClassDetailPage({
                   value={schedEnd}
                   onChange={(e) => setSchedEnd(e.target.value)}
                   placeholder="종료 (16:00)"
-                  className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <button
                   type="submit"
                   disabled={addingSchedule}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
                 >
                   {addingSchedule ? "추가 중..." : "시간표 등록"}
                 </button>
@@ -574,23 +572,23 @@ export default function ClassDetailPage({
 
             <div className="space-y-3">
               {classDetail.schedules.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 text-xs glass-panel rounded-xl">
+                <div className="page-panel p-8 text-center text-xs text-slate-500">
                   등록된 정규 시간표가 없습니다.
                 </div>
               ) : (
                 classDetail.schedules.map((sch) => (
                   <div
                     key={sch.id}
-                    className="p-4 rounded-xl glass-panel border border-slate-800 flex justify-between items-center"
+                    className="page-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <span className="font-bold text-indigo-400 mr-3">
+                      <span className="mr-3 font-bold text-blue-700">
                         {dayNames[sch.dayOfWeek]}
                       </span>
-                      <span className="text-sm font-semibold text-white">
+                      <span className="text-sm font-semibold text-slate-950">
                         {sch.startTime} ~ {sch.endTime}
                       </span>
-                      <span className="ml-3 text-xs text-slate-400">
+                      <span className="ml-0 block text-xs text-slate-500 sm:ml-3 sm:inline">
                         (사전접속 {sch.preEntryMinutes}분 전 / 제출유예{" "}
                         {sch.gracePeriodMinutes}분 후)
                       </span>
@@ -598,7 +596,7 @@ export default function ClassDetailPage({
 
                     <button
                       onClick={() => handleDeleteSchedule(sch.id)}
-                      className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs transition-colors"
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs text-rose-600 transition-colors hover:bg-rose-100"
                     >
                       삭제
                     </button>
@@ -612,9 +610,9 @@ export default function ClassDetailPage({
         {/* 탭 4: 반 설정 (즉시 적용) */}
         {activeTab === "settings" && (
           <div className="space-y-6">
-            <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 text-xs flex items-start gap-3">
+            <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700">
               <svg
-                className="w-5 h-5 flex-shrink-0 text-indigo-400 mt-0.5"
+                className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -627,10 +625,10 @@ export default function ClassDetailPage({
                 />
               </svg>
               <div>
-                <p className="font-bold text-indigo-300">
-                  ⚡ 실시간 설정 즉시 적용
+                <p className="font-bold text-blue-800">
+                  실시간 설정 즉시 적용
                 </p>
-                <p className="mt-1 leading-relaxed text-indigo-200/90">
+                <p className="mt-1 leading-relaxed text-blue-700">
                   이 페이지에서 변경한 내용은{" "}
                   <strong>진행 중인 수업 및 향후 수업에 즉시 반영</strong>
                   됩니다.
@@ -638,8 +636,8 @@ export default function ClassDetailPage({
               </div>
             </div>
 
-            <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-              <h3 className="text-base font-bold text-white">
+            <div className="page-panel space-y-4 p-6">
+              <h3 className="text-base font-bold text-slate-950">
                 접속 및 제출 규칙 설정
               </h3>
               <form
@@ -672,55 +670,55 @@ export default function ClassDetailPage({
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
                       사전 접속 허용시간 (분 전)
                     </label>
                     <input
                       type="number"
                       value={preEntryMin}
                       onChange={(e) => setPreEntryMin(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
                       제출 유예시간 (분 후)
                     </label>
                     <input
                       type="number"
                       value={graceMin}
                       onChange={(e) => setGraceMin(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
                       제출 파일 개수 제한
                     </label>
-                    <div className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80 text-emerald-400 text-xs font-semibold">
+                    <div className="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-semibold text-emerald-700">
                       개수 제한 없음 (무제한 첨부 가능)
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
                       개별 파일 최대 용량 (고정)
                     </label>
-                    <div className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80 text-amber-300 text-xs font-semibold flex justify-between items-center">
+                    <div className="flex w-full items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-semibold text-amber-700">
                       <span>50 MB 고정</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span className="text-[10px] font-normal text-slate-500">
                         (시스템 고정값)
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 space-y-1.5">
+                <div className="space-y-1.5 rounded-lg border border-blue-100 bg-blue-50 p-3.5 text-xs text-blue-700">
                   <div className="flex items-center gap-2">
                     <svg
-                      className="w-4 h-4 flex-shrink-0 text-indigo-400"
+                      className="h-4 w-4 flex-shrink-0 text-blue-600"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -733,14 +731,14 @@ export default function ClassDetailPage({
                       />
                     </svg>
                     <span>
-                      📁 Google Drive 업로드 시{" "}
+                      Google Drive 업로드 시{" "}
                       <strong>[학생이름]_[반이름]_[파일명]</strong> 규칙으로
                       자동 저장됩니다.
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-rose-300 font-medium">
+                  <div className="flex items-center gap-2 font-medium text-rose-600">
                     <svg
-                      className="w-4 h-4 flex-shrink-0 text-rose-400"
+                      className="h-4 w-4 flex-shrink-0 text-rose-600"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -764,7 +762,7 @@ export default function ClassDetailPage({
                   <button
                     type="submit"
                     disabled={savingSettings}
-                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors disabled:opacity-50"
+                    className="rounded-lg bg-blue-600 px-6 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
                   >
                     {savingSettings ? "저장 중..." : "실시간 적용 설정 저장"}
                   </button>
@@ -776,14 +774,14 @@ export default function ClassDetailPage({
 
         {/* PIN 재설정 모달 */}
         {resetPinStudentId && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-sm p-6 rounded-2xl glass-panel border border-slate-700 bg-slate-900 space-y-4">
-              <h3 className="text-base font-bold text-white">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
+              <h3 className="text-base font-bold text-slate-950">
                 학생 PIN 번호 재설정
               </h3>
               <form onSubmit={handleResetPin} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">
                     새 PIN 번호 (4자리)
                   </label>
                   <input
@@ -795,20 +793,20 @@ export default function ClassDetailPage({
                       setResetPinValue(e.target.value.replace(/\D/g, ""))
                     }
                     placeholder="예: 9999"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setResetPinStudentId(null)}
-                    className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                    className="flex-1 rounded-lg bg-slate-100 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                   >
                     취소
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-500"
                   >
                     재설정 저장
                   </button>
@@ -820,27 +818,27 @@ export default function ClassDetailPage({
 
         {/* 전역 학생 배정 모달 */}
         {isEnrollModalOpen && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-lg p-6 rounded-2xl glass-panel border border-slate-700 bg-slate-900 space-y-4 max-h-[80vh] flex flex-col">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-                <h3 className="text-base font-bold text-white">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+            <div className="flex max-h-[80vh] w-full max-w-lg flex-col space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <h3 className="text-base font-bold text-slate-950">
                   이 반에 학생 배정하기
                 </h3>
                 <button
                   onClick={() => setIsEnrollModalOpen(false)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-500 hover:text-slate-900"
                 >
-                  닫기 ✕
+                  닫기
                 </button>
               </div>
 
               <div className="overflow-y-auto flex-1 pr-2 space-y-2 min-h-[200px]">
                 {loadingGlobalStudents ? (
-                  <div className="text-center text-slate-400 text-sm py-8">
+                  <div className="py-8 text-center text-sm text-slate-500">
                     학생 목록을 불러오는 중...
                   </div>
                 ) : globalStudents.length === 0 ? (
-                  <div className="text-center text-slate-400 text-sm py-8">
+                  <div className="py-8 text-center text-sm text-slate-500">
                     배정 가능한 새로운 학생이 없습니다.
                     <br />
                     전역 학생 관리에서 먼저 등록해 주세요.
@@ -849,7 +847,7 @@ export default function ClassDetailPage({
                   globalStudents.map((student) => (
                     <label
                       key={student.id}
-                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800/60 border border-transparent hover:border-slate-700 cursor-pointer transition-colors"
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-3 transition-colors hover:border-slate-200 hover:bg-slate-50"
                     >
                       <input
                         type="checkbox"
@@ -866,9 +864,9 @@ export default function ClassDetailPage({
                             );
                           }
                         }}
-                        className="w-4 h-4 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500 bg-slate-950"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-semibold text-white">
+                      <span className="text-sm font-semibold text-slate-800">
                         {student.name}
                       </span>
                     </label>
@@ -876,11 +874,11 @@ export default function ClassDetailPage({
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsEnrollModalOpen(false)}
-                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                  className="rounded-lg bg-slate-100 px-5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                 >
                   취소
                 </button>
@@ -888,7 +886,7 @@ export default function ClassDetailPage({
                   type="button"
                   onClick={handleEnrollStudents}
                   disabled={enrolling || selectedStudentIds.length === 0}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-50"
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
                 >
                   {enrolling
                     ? "배정 중..."
