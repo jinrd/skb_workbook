@@ -3,6 +3,5 @@ onlyBuiltDependencies:
   - argon2
   - esbuild
   - prisma
-ignoredBuiltDependencies:
   - sharp
   - unrs-resolver

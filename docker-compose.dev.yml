@@ -1,0 +1,42 @@
+name: skb-workbook-dev
+
+services:
+  dev_skb_workbook_frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: skb_workbook-frontend:dev
+    container_name: skb_workbook_dev_frontend
+
+    env_file:
+      - ./deploy/dev.env
+
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    networks:
+      caddy_proxy:
+        aliases:
+          - skb-workbook-dev
+
+networks:
+  caddy_proxy:
+    external: true
+    name: caddy_proxy
