@@ -121,7 +121,21 @@ export default function TeacherDashboardLayout({
     {
       href: "/teacher/dashboard/analytics",
       label: "기록 분석",
-      icon: "📈",
+      icon: (
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M4 19h16M7 16l3-3 3 2 4-6"
+          />
+        </svg>
+      ),
     },
     {
       label: "엑셀 보관",
@@ -145,7 +159,7 @@ export default function TeacherDashboardLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-[#f6f7f4] text-slate-900 pb-32 sm:pb-24 md:pb-8">
+    <div className="min-h-screen bg-[#f6f7f4] text-slate-900 pb-24 md:pb-8">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <Link href="/teacher/dashboard" className="flex items-center gap-2.5">
@@ -174,34 +188,34 @@ export default function TeacherDashboardLayout({
 
       <main className="mx-auto max-w-5xl p-3 sm:p-4 md:p-6">{children}</main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-lg">
-        <div className="mx-auto grid max-w-5xl grid-cols-4 gap-1 sm:grid-cols-7">
-          {navItems.map((item) => {
-            const isActive = item.exact
-              ? pathname === item.href
-              : pathname.startsWith(item.href);
+      <nav className="fixed bottom-0 left-0 right-0 z-50 h-20 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-lg">
+        <div className="mobile-scroll mx-auto max-w-5xl">
+          <div className="grid min-w-[560px] grid-cols-7 gap-1">
+            {navItems.map((item) => {
+              const isActive = item.exact
+                ? pathname === item.href
+                : pathname.startsWith(item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all ${
-                  isActive
-                    ? "bg-blue-50 font-bold text-blue-700 shadow-inner"
-                    : "text-slate-500 hover:text-slate-900 active:bg-slate-100"
-                }`}
-              >
-                <div
-                  className={`${isActive ? "scale-110 text-blue-700" : ""} transition-transform`}
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex h-14 flex-col items-center justify-center rounded-xl px-1 transition-colors ${
+                    isActive
+                      ? "bg-blue-50 font-bold text-blue-700 shadow-inner"
+                      : "text-slate-500 hover:text-slate-900 active:bg-slate-100"
+                  }`}
                 >
-                  {item.icon}
-                </div>
-                <span className="text-[10px] mt-1 tracking-tight truncate w-full text-center">
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+                  <div className="flex h-5 w-5 items-center justify-center">
+                    {item.icon}
+                  </div>
+                  <span className="mt-1 h-3 w-full truncate text-center text-[10px] leading-3 tracking-tight">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>
