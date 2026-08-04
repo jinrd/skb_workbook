@@ -1,5 +1,12 @@
 import { prisma } from '@/lib/prisma';
-import { getSeoulNow, getSeoulDayName } from '@/lib/timezone';
+import {
+  createSeoulDateTime,
+  getSeoulDateKey,
+  getSeoulDayName,
+  getSeoulDayOfWeek,
+  getSeoulHourMinute,
+  getSeoulNow,
+} from '@/lib/timezone';
 
 export interface AccessCheckResult {
   isAllowed: boolean;
@@ -45,16 +52,45 @@ export async function checkClassAccess(params: {
   const latestSetting = targetClass.settingVersions[0];
   const preEntryMin = latestSetting?.preEntryMinutes ?? 10;
   const graceMin = latestSetting?.gracePeriodMinutes ?? 10;
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getSeoulDateKey(now);
 
   // 2. 오늘 휴강(CANCEL) 예외가 있는지 확인
   const isCanceledToday = targetClass.scheduleExceptions.some(
-    (e) => e.type === 'CANCEL' && e.date.toISOString().split('T')[0] === todayStr
+    (e) => e.type === 'CANCEL' && getSeoulDateKey(e.date) === todayStr
   );
 
   if (isCanceledToday) {
     return { isAllowed: false, reason: '오늘은 휴강일로 지정되어 수업 및 제출이 차단됩니다.' };
   }
+
+  const currentDayOfWeek = getSeoulDayOfWeek(now);
+  const currentHHMM = getSeoulHourMinute(now);
+  const todaySchedules = targetClass.schedules.filter((s) => s.dayOfWeek === currentDayOfWeek);
+
+  const buildScheduleWindow = (sch: (typeof todaySchedules)[number]) => {
+    const [startH, startM] = sch.startTime.split(':').map(Number);
+    const [endH, endM] = sch.endTime.split(':').map(Number);
+
+    const schedulePreEntryMin = sch.preEntryMinutes || preEntryMin;
+    const scheduleGraceMin = sch.gracePeriodMinutes || graceMin;
+    const scheduledStart = createSeoulDateTime(now, startH, startM);
+    const scheduledEnd = createSeoulDateTime(now, endH, endM);
+    const allowedStartDate = new Date(
+      scheduledStart.getTime() - schedulePreEntryMin * 60 * 1000,
+    );
+    const allowedEndDate = new Date(
+      scheduledEnd.getTime() + scheduleGraceMin * 60 * 1000,
+    );
+
+    return {
+      scheduledStart,
+      scheduledEnd,
+      allowedStartDate,
+      allowedEndDate,
+      schedulePreEntryMin,
+      scheduleGraceMin,
+    };
+  };
 
   // 3. 현재 활성화(OPEN)된 ClassSession 조회
   const activeSession = await prisma.classSession.findFirst({
@@ -66,20 +102,42 @@ export async function checkClassAccess(params: {
   });
 
   if (activeSession) {
-    const isWithinTime =
-      now.getTime() >= activeSession.actualAllowedStart.getTime() &&
-      now.getTime() <= activeSession.actualAllowedEnd.getTime();
+    const activeScheduleWindow = todaySchedules
+      .map(buildScheduleWindow)
+      .find(
+        (window) =>
+          now.getTime() >= window.allowedStartDate.getTime() &&
+          now.getTime() <= window.allowedEndDate.getTime(),
+      );
 
-    if (isWithinTime) {
+    if (activeScheduleWindow) {
+      const allowedStart = activeScheduleWindow.allowedStartDate;
+      const allowedEnd = activeScheduleWindow.allowedEndDate;
+
+      if (
+        activeSession.actualAllowedStart.getTime() !== allowedStart.getTime() ||
+        activeSession.actualAllowedEnd.getTime() !== allowedEnd.getTime()
+      ) {
+        await prisma.classSession.update({
+          where: { id: activeSession.id },
+          data: {
+            scheduledStartTime: activeScheduleWindow.scheduledStart,
+            scheduledEndTime: activeScheduleWindow.scheduledEnd,
+            actualAllowedStart: allowedStart,
+            actualAllowedEnd: allowedEnd,
+          },
+        });
+      }
+
       return {
         isAllowed: true,
         classId: targetClass.id,
         className: targetClass.name,
         classSessionId: activeSession.id,
-        actualAllowedStart: activeSession.actualAllowedStart,
-        actualAllowedEnd: activeSession.actualAllowedEnd,
-        preEntryMinutes: preEntryMin,
-        gracePeriodMinutes: graceMin,
+        actualAllowedStart: allowedStart,
+        actualAllowedEnd: allowedEnd,
+        preEntryMinutes: activeScheduleWindow.schedulePreEntryMin,
+        gracePeriodMinutes: activeScheduleWindow.scheduleGraceMin,
       };
     } else {
       // 시간 경과로 인한 세션 자동 마감 처리
@@ -91,27 +149,18 @@ export async function checkClassAccess(params: {
   }
 
   // 4. 정규 시간표 조건 확인 (수업 정규 시간대이면 새로 OPEN 세션을 개방하여 접속 허용)
-  const currentDayOfWeek = now.getDay();
-  const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const todaySchedules = targetClass.schedules.filter((s) => s.dayOfWeek === currentDayOfWeek);
-
   for (const sch of todaySchedules) {
-    const [startH, startM] = sch.startTime.split(':').map(Number);
-    const [endH, endM] = sch.endTime.split(':').map(Number);
-
-    const allowedStartDate = new Date(now);
-    allowedStartDate.setHours(startH, startM - (sch.preEntryMinutes || preEntryMin), 0, 0);
-
-    const allowedEndDate = new Date(now);
-    allowedEndDate.setHours(endH, endM + (sch.gracePeriodMinutes || graceMin), 0, 0);
+    const {
+      scheduledStart,
+      scheduledEnd,
+      allowedStartDate,
+      allowedEndDate,
+      schedulePreEntryMin,
+      scheduleGraceMin,
+    } = buildScheduleWindow(sch);
 
     if (now.getTime() >= allowedStartDate.getTime() && now.getTime() <= allowedEndDate.getTime()) {
       // 정규 시간표 시간대에 해당함 -> ClassSession 생성하여 즉시 OPEN
-      const scheduledStart = new Date(now);
-      scheduledStart.setHours(startH, startM, 0, 0);
-      const scheduledEnd = new Date(now);
-      scheduledEnd.setHours(endH, endM, 0, 0);
-
       const newSession = await prisma.classSession.create({
         data: {
           classId: targetClass.id,
@@ -125,8 +174,8 @@ export async function checkClassAccess(params: {
           snapshotData: JSON.stringify({
             className: targetClass.name,
             version: latestSetting?.version || 1,
-            preEntryMinutes: sch.preEntryMinutes || preEntryMin,
-            gracePeriodMinutes: sch.gracePeriodMinutes || graceMin,
+            preEntryMinutes: schedulePreEntryMin,
+            gracePeriodMinutes: scheduleGraceMin,
           }),
         },
       });
@@ -138,8 +187,8 @@ export async function checkClassAccess(params: {
         classSessionId: newSession.id,
         actualAllowedStart: allowedStartDate,
         actualAllowedEnd: allowedEndDate,
-        preEntryMinutes: sch.preEntryMinutes || preEntryMin,
-        gracePeriodMinutes: sch.gracePeriodMinutes || graceMin,
+        preEntryMinutes: schedulePreEntryMin,
+        gracePeriodMinutes: scheduleGraceMin,
       };
     }
   }

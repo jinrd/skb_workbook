@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getTeacherSession } from "@/lib/auth";
 import { verifyClassOwnership } from "@/lib/accessControl";
-import { getSeoulNow } from "@/lib/timezone";
+import {
+  getSeoulDateKey,
+  getSeoulEndOfDay,
+  getSeoulNow,
+  getSeoulStartOfDay,
+} from "@/lib/timezone";
 
 type GoalSummary = {
   goalName: string;
@@ -74,32 +79,9 @@ export async function GET(
     }
 
     const now = getSeoulNow();
-
-    const todayDateStr = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, "0"),
-      String(now.getDate()).padStart(2, "0"),
-    ].join("-");
-
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0,
-      0,
-      0,
-      0,
-    );
-
-    const endOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-      0,
-      0,
-      0,
-      0,
-    );
+    const todayDateStr = getSeoulDateKey(now);
+    const startOfDay = getSeoulStartOfDay(now);
+    const endOfDay = getSeoulEndOfDay(now);
 
     const submissions = await prisma.submission.findMany({
       where: {
