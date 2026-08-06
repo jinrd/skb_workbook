@@ -52,7 +52,14 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json({ sessions: activeSessionsMap });
+    return NextResponse.json({
+      teacher: {
+        id: validTeacher.id,
+        name: validTeacher.name,
+        role: validTeacher.role,
+      },
+      sessions: activeSessionsMap,
+    });
   } catch (error) {
     console.error('Fetch active sessions error:', error);
     return NextResponse.json({ error: '수업 현황 정보를 불러오지 못했습니다.' }, { status: 500 });

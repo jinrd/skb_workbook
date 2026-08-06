@@ -79,6 +79,9 @@ export default function ClassDetailPage({
   // 연습 종목 추가 State
   const [newGoalName, setNewGoalName] = useState("");
   const [addingGoal, setAddingGoal] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editingGoalName, setEditingGoalName] = useState("");
+  const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
 
   // 시간표 추가 State
   const [schedDay, setSchedDay] = useState(4); // 목요일
@@ -243,6 +246,44 @@ export default function ClassDetailPage({
       console.error("Add practice goal error:", err);
     } finally {
       setAddingGoal(false);
+    }
+  };
+
+  const startEditGoal = (goal: PracticeGoalItem) => {
+    setEditingGoalId(goal.id);
+    setEditingGoalName(goal.name);
+  };
+
+  const handleUpdateGoal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGoalId || !editingGoalName.trim()) return;
+
+    setSavingGoalId(editingGoalId);
+    try {
+      const res = await fetch(
+        `/api/teacher/classes/${classId}/practice-goals`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            practiceGoalId: editingGoalId,
+            name: editingGoalName.trim(),
+          }),
+        },
+      );
+
+      if (res.ok) {
+        setEditingGoalId(null);
+        setEditingGoalName("");
+        await fetchClassDetail();
+      } else {
+        const data = await res.json();
+        alert(data.error || "연습 종목명 수정에 실패했습니다.");
+      }
+    } catch (err) {
+      console.error("Update practice goal error:", err);
+    } finally {
+      setSavingGoalId(null);
     }
   };
 
@@ -504,17 +545,60 @@ export default function ClassDetailPage({
                 .map((goal) => (
                   <div
                     key={goal.id}
-                    className="page-panel flex items-center justify-between p-4"
+                    className="page-panel flex flex-col gap-3 p-4"
                   >
-                    <span className="text-sm font-semibold text-slate-800">
-                      {goal.name}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteGoal(goal.id)}
-                      className="rounded border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs text-rose-600 transition-colors hover:bg-rose-100"
-                    >
-                      비활성화
-                    </button>
+                    {editingGoalId === goal.id ? (
+                      <form onSubmit={handleUpdateGoal} className="space-y-3">
+                        <input
+                          type="text"
+                          required
+                          value={editingGoalName}
+                          onChange={(event) =>
+                            setEditingGoalName(event.target.value)
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingGoalId(null);
+                              setEditingGoalName("");
+                            }}
+                            className="rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100"
+                          >
+                            취소
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={savingGoalId === goal.id}
+                            className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+                          >
+                            {savingGoalId === goal.id ? "저장 중..." : "저장"}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <span className="text-sm font-semibold text-slate-800">
+                          {goal.name}
+                        </span>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => startEditGoal(goal)}
+                            className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-100"
+                          >
+                            이름 수정
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGoal(goal.id)}
+                            className="rounded border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs text-rose-600 transition-colors hover:bg-rose-100"
+                          >
+                            비활성화
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
             </div>

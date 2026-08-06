@@ -39,6 +39,11 @@ export type MonthlyExportData = {
     submissionCount: number;
     totalDurationSeconds: number;
   }>;
+  studentCharts: Array<{
+    studentName: string;
+    recentSubmissions: Array<{ submittedAt: Date; durationSeconds: number }>;
+    daily: Array<{ dateKey: string; submissionCount: number; totalDurationSeconds: number }>;
+  }>;
 };
 
 function getMonthRange(periodKey: string) {
@@ -162,6 +167,12 @@ export async function getMonthlyExportData(
     }
   >();
 
+  const studentChartMap = new Map<string, {
+    studentName: string;
+    submissions: Array<{ submittedAt: Date; durationSeconds: number }>;
+    daily: Map<string, { dateKey: string; submissionCount: number; totalDurationSeconds: number }>;
+  }>();
+
   let totalDurationSeconds = 0;
 
   for (const submission of submissions) {
@@ -208,6 +219,25 @@ export async function getMonthlyExportData(
     dailySummary.submissionCount += 1;
     dailySummary.totalDurationSeconds += submission.durationSeconds;
     dailyMap.set(dateKey, dailySummary);
+
+    const studentChart = studentChartMap.get(submission.student.id) ?? {
+      studentName: submission.student.name,
+      submissions: [],
+      daily: new Map<string, { dateKey: string; submissionCount: number; totalDurationSeconds: number }>(),
+    };
+    studentChart.submissions.push({
+      submittedAt: submission.submittedAt,
+      durationSeconds: submission.durationSeconds,
+    });
+    const studentDaily = studentChart.daily.get(dateKey) ?? {
+      dateKey,
+      submissionCount: 0,
+      totalDurationSeconds: 0,
+    };
+    studentDaily.submissionCount += 1;
+    studentDaily.totalDurationSeconds += submission.durationSeconds;
+    studentChart.daily.set(dateKey, studentDaily);
+    studentChartMap.set(submission.student.id, studentChart);
   }
 
   return {
@@ -240,5 +270,14 @@ export async function getMonthlyExportData(
     dailySummaries: [...dailyMap.values()].sort((a, b) =>
       a.dateKey.localeCompare(b.dateKey),
     ),
+    studentCharts: [...studentChartMap.values()]
+      .sort((a, b) => a.studentName.localeCompare(b.studentName, "ko"))
+      .map((student) => ({
+        studentName: student.studentName,
+        recentSubmissions: student.submissions.slice(-10),
+        daily: [...student.daily.values()].sort((a, b) =>
+          a.dateKey.localeCompare(b.dateKey),
+        ),
+      })),
   };
 }

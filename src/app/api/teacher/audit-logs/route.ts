@@ -9,6 +9,10 @@ export async function GET() {
       return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
     }
 
+    if (session.role !== 'ADMIN') {
+      return NextResponse.json({ error: '관리자만 감사 로그를 조회할 수 있습니다.' }, { status: 403 });
+    }
+
     // 최근 100개의 시스템 작업 로그(Cleanup) 조회
     const auditLogs = await prisma.cleanupLog.findMany({
       take: 100,

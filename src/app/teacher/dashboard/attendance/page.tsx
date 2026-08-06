@@ -2,15 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-interface PracticeGoalItem {
-  id: string;
-  name: string;
-}
-
 interface ClassItem {
   id: string;
   name: string;
-  practiceGoals: PracticeGoalItem[];
 }
 
 interface StudentItem {
@@ -18,12 +12,11 @@ interface StudentItem {
   name: string;
 }
 
-interface SubmissionItem {
+interface AttendanceItem {
   id: string;
-  goalName: string;
-  durationSeconds: number;
-  memo: string | null;
-  submittedAt: string;
+  entryAt: string;
+  exitAt: string | null;
+  exitSource: "MANUAL" | "AUTO_SESSION_END" | null;
   class: {
     id: string;
     name: string;
@@ -32,15 +25,13 @@ interface SubmissionItem {
     id: string;
     name: string;
   };
-  practiceGoal?: {
-    id: string;
-    name: string;
-  } | null;
 }
 
-interface SubmissionSummary {
-  totalSubmissionCount: number;
-  totalDurationSeconds: number;
+interface AttendanceSummary {
+  totalAttendanceCount: number;
+  activeAttendanceCount: number;
+  completedAttendanceCount: number;
+  totalStaySeconds: number;
 }
 
 interface Pagination {
@@ -49,41 +40,77 @@ interface Pagination {
   totalPages: number;
 }
 
-function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return [
-    String(hours).padStart(2, "0"),
-    String(minutes).padStart(2, "0"),
-    String(seconds).padStart(2, "0"),
-  ].join(":");
-}
-
-function formatSubmittedAt(value: string): string {
+function formatSeoulDate(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
+    weekday: "short",
   }).format(new Date(value));
 }
 
-export default function TeacherSubmissionsDashboardPage() {
+function formatSeoulTime(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(value));
+}
+
+function getStaySeconds(entryAt: string, exitAt: string | null): number {
+  if (!exitAt) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((new Date(exitAt).getTime() - new Date(entryAt).getTime()) / 1000),
+  );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours <= 0 && minutes <= 0) {
+    return "1분 미만";
+  }
+
+  if (hours <= 0) {
+    return `${minutes}분`;
+  }
+
+  return `${hours}시간 ${minutes}분`;
+}
+
+function formatExitSource(value: AttendanceItem["exitSource"]): string {
+  if (value === "AUTO_SESSION_END") {
+    return "자동";
+  }
+
+  if (value === "MANUAL") {
+    return "직접";
+  }
+
+  return "-";
+}
+
+export default function TeacherAttendanceDashboardPage() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [students, setStudents] = useState<StudentItem[]>([]);
-
-  const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
-
-  const [summary, setSummary] = useState<SubmissionSummary>({
-    totalSubmissionCount: 0,
-    totalDurationSeconds: 0,
+  const [attendances, setAttendances] = useState<AttendanceItem[]>([]);
+  const [summary, setSummary] = useState<AttendanceSummary>({
+    totalAttendanceCount: 0,
+    activeAttendanceCount: 0,
+    completedAttendanceCount: 0,
+    totalStaySeconds: 0,
   });
-
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 30,
@@ -91,27 +118,26 @@ export default function TeacherSubmissionsDashboardPage() {
   });
 
   const [selectedClassId, setSelectedClassId] = useState("");
-
-  const [selectedGoalId, setSelectedGoalId] = useState("");
-
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-
   const [loading, setLoading] = useState(true);
-
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const availableGoals = useMemo(() => {
-    if (selectedClassId) {
-      return (
-        classes.find((classItem) => classItem.id === selectedClassId)
-          ?.practiceGoals ?? []
-      );
+  const groupedAttendances = useMemo(() => {
+    const groups = new Map<string, AttendanceItem[]>();
+
+    for (const attendance of attendances) {
+      const key = `${attendance.student.id}:${attendance.student.name}`;
+      groups.set(key, [...(groups.get(key) ?? []), attendance]);
     }
 
-    return classes.flatMap((classItem) => classItem.practiceGoals);
-  }, [classes, selectedClassId]);
+    return Array.from(groups.entries()).map(([key, items]) => ({
+      key,
+      studentName: items[0].student.name,
+      items,
+    }));
+  }, [attendances]);
 
   useEffect(() => {
     let ignore = false;
@@ -123,10 +149,6 @@ export default function TeacherSubmissionsDashboardPage() {
 
     if (selectedClassId) {
       params.set("classId", selectedClassId);
-    }
-
-    if (selectedGoalId) {
-      params.set("practiceGoalId", selectedGoalId);
     }
 
     if (selectedStudentId) {
@@ -141,7 +163,7 @@ export default function TeacherSubmissionsDashboardPage() {
       params.set("to", toDate);
     }
 
-    fetch(`/api/teacher/submissions?${params.toString()}`)
+    fetch(`/api/teacher/attendance?${params.toString()}`)
       .then(async (response) => {
         const data = await response.json();
 
@@ -150,22 +172,22 @@ export default function TeacherSubmissionsDashboardPage() {
         }
 
         if (!response.ok) {
-          setErrorMessage(data.error || "제출 기록을 불러오지 못했습니다.");
+          setErrorMessage(data.error || "출석 기록을 불러오지 못했습니다.");
           return;
         }
 
         setErrorMessage(null);
-
         setClasses(data.teacherClasses ?? []);
         setStudents(data.students ?? []);
-        setSubmissions(data.submissions ?? []);
+        setAttendances(data.attendances ?? []);
         setSummary(
           data.summary ?? {
-            totalSubmissionCount: 0,
-            totalDurationSeconds: 0,
+            totalAttendanceCount: 0,
+            activeAttendanceCount: 0,
+            completedAttendanceCount: 0,
+            totalStaySeconds: 0,
           },
         );
-
         setPagination(
           data.pagination ?? {
             page: 1,
@@ -179,8 +201,7 @@ export default function TeacherSubmissionsDashboardPage() {
           return;
         }
 
-        console.error("Fetch submissions error:", error);
-
+        console.error("Fetch attendance error:", error);
         setErrorMessage("서버 연결 중 오류가 발생했습니다.");
       })
       .finally(() => {
@@ -194,7 +215,6 @@ export default function TeacherSubmissionsDashboardPage() {
     };
   }, [
     selectedClassId,
-    selectedGoalId,
     selectedStudentId,
     fromDate,
     toDate,
@@ -202,18 +222,7 @@ export default function TeacherSubmissionsDashboardPage() {
     pagination.pageSize,
   ]);
 
-  const handleClassChange = (classId: string) => {
-    setSelectedClassId(classId);
-    setSelectedGoalId("");
-    setSelectedStudentId("");
-    setPagination((current) => ({
-      ...current,
-      page: 1,
-    }));
-  };
-
-  const handleGoalChange = (goalId: string) => {
-    setSelectedGoalId(goalId);
+  const resetPage = () => {
     setPagination((current) => ({
       ...current,
       page: 1,
@@ -222,28 +231,10 @@ export default function TeacherSubmissionsDashboardPage() {
 
   const handleResetFilters = () => {
     setSelectedClassId("");
-    setSelectedGoalId("");
     setSelectedStudentId("");
     setFromDate("");
     setToDate("");
-    setPagination((current) => ({
-      ...current,
-      page: 1,
-    }));
-  };
-
-  const handlePreviousPage = () => {
-    setPagination((current) => ({
-      ...current,
-      page: Math.max(1, current.page - 1),
-    }));
-  };
-
-  const handleNextPage = () => {
-    setPagination((current) => ({
-      ...current,
-      page: Math.min(current.totalPages, current.page + 1),
-    }));
+    resetPage();
   };
 
   return (
@@ -251,33 +242,44 @@ export default function TeacherSubmissionsDashboardPage() {
       <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold text-blue-600">최근 1개월</p>
-          <h2 className="mt-1 text-xl font-bold text-slate-950">제출함</h2>
+          <h2 className="mt-1 text-xl font-bold text-slate-950">출석 기록</h2>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div className="page-panel px-3 py-2 text-right">
-            <p className="text-[11px] text-slate-500">제출</p>
+            <p className="text-[11px] text-slate-500">입실</p>
             <p className="font-mono text-base font-bold text-blue-700">
-              {summary.totalSubmissionCount}회
+              {summary.totalAttendanceCount}회
             </p>
           </div>
 
           <div className="page-panel px-3 py-2 text-right">
-            <p className="text-[11px] text-slate-500">총 연습시간</p>
+            <p className="text-[11px] text-slate-500">수강 중</p>
+            <p className="font-mono text-base font-bold text-amber-700">
+              {summary.activeAttendanceCount}명
+            </p>
+          </div>
+
+          <div className="page-panel px-3 py-2 text-right">
+            <p className="text-[11px] text-slate-500">체류시간</p>
             <p className="font-mono text-base font-bold text-emerald-700">
-              {formatDuration(summary.totalDurationSeconds)}
+              {formatDuration(summary.totalStaySeconds)}
             </p>
           </div>
         </div>
       </header>
 
       <section className="page-panel p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block">
             <span className="mb-1 block text-xs text-slate-500">반</span>
             <select
               value={selectedClassId}
-              onChange={(event) => handleClassChange(event.target.value)}
+              onChange={(event) => {
+                setSelectedClassId(event.target.value);
+                setSelectedStudentId("");
+                resetPage();
+              }}
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             >
               <option value="">전체 반</option>
@@ -290,31 +292,12 @@ export default function TeacherSubmissionsDashboardPage() {
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-xs text-slate-500">연습 목표</span>
-            <select
-              value={selectedGoalId}
-              onChange={(event) => handleGoalChange(event.target.value)}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
-            >
-              <option value="">전체 목표</option>
-              {availableGoals.map((goal) => (
-                <option key={goal.id} value={goal.id}>
-                  {goal.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
             <span className="mb-1 block text-xs text-slate-500">학생</span>
             <select
               value={selectedStudentId}
               onChange={(event) => {
                 setSelectedStudentId(event.target.value);
-                setPagination((current) => ({
-                  ...current,
-                  page: 1,
-                }));
+                resetPage();
               }}
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             >
@@ -334,10 +317,7 @@ export default function TeacherSubmissionsDashboardPage() {
               value={fromDate}
               onChange={(event) => {
                 setFromDate(event.target.value);
-                setPagination((current) => ({
-                  ...current,
-                  page: 1,
-                }));
+                resetPage();
               }}
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             />
@@ -350,10 +330,7 @@ export default function TeacherSubmissionsDashboardPage() {
               value={toDate}
               onChange={(event) => {
                 setToDate(event.target.value);
-                setPagination((current) => ({
-                  ...current,
-                  page: 1,
-                }));
+                resetPage();
               }}
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
             />
@@ -379,61 +356,86 @@ export default function TeacherSubmissionsDashboardPage() {
 
       {loading ? (
         <div className="page-panel py-16 text-center text-xs text-slate-500">
-          제출 기록을 불러오는 중입니다.
+          출석 기록을 불러오는 중입니다.
         </div>
-      ) : submissions.length === 0 ? (
+      ) : attendances.length === 0 ? (
         <div className="page-panel py-16 text-center text-xs text-slate-500">
-          조건에 맞는 제출 기록이 없습니다.
+          조건에 맞는 출석 기록이 없습니다.
         </div>
       ) : (
-        <section className="page-panel overflow-hidden">
-          <div className="hidden grid-cols-[150px_120px_1fr_140px_110px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold text-slate-500 md:grid">
-            <span>제출일시</span>
-            <span>반 / 학생</span>
-            <span>연습 목표 / 메모</span>
-            <span>연습시간</span>
-            <span>첨부</span>
-          </div>
+        <section className="space-y-3">
+          {groupedAttendances.map((group) => (
+            <article
+              key={group.key}
+              className="page-panel overflow-hidden bg-white"
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <h3 className="text-sm font-bold text-slate-950">
+                  {group.studentName}
+                </h3>
+                <span className="font-mono text-xs font-semibold text-blue-700">
+                  {group.items.length}회
+                </span>
+              </div>
 
-          <div className="divide-y divide-slate-100">
-            {submissions.map((submission) => (
-              <article
-                key={submission.id}
-                className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[150px_120px_1fr_140px_110px] md:items-center md:gap-4"
-              >
-                <time className="font-mono text-xs text-slate-500">
-                  {formatSubmittedAt(submission.submittedAt)}
-                </time>
+              <div className="hidden grid-cols-[150px_120px_100px_100px_120px_90px] gap-4 border-b border-slate-100 px-4 py-2 text-[11px] font-semibold text-slate-500 md:grid">
+                <span>날짜</span>
+                <span>반</span>
+                <span>입실</span>
+                <span>퇴실</span>
+                <span>체류시간</span>
+                <span>방식</span>
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold text-slate-950">
-                    {submission.student.name}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    {submission.class.name}
-                  </p>
-                </div>
+              <div className="divide-y divide-slate-100">
+                {group.items.map((attendance) => {
+                  const isActive = !attendance.exitAt;
 
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-blue-700">
-                    {submission.practiceGoal?.name ?? submission.goalName}
-                  </p>
+                  return (
+                    <div
+                      key={attendance.id}
+                      className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[150px_120px_100px_100px_120px_90px] md:items-center md:gap-4"
+                    >
+                      <time className="font-mono text-slate-500">
+                        {formatSeoulDate(attendance.entryAt)}
+                      </time>
 
-                  {submission.memo && (
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-                      {submission.memo}
-                    </p>
-                  )}
-                </div>
+                      <p className="font-semibold text-slate-950">
+                        {attendance.class.name}
+                      </p>
 
-                <p className="font-mono text-sm font-semibold text-emerald-700">
-                  {formatDuration(submission.durationSeconds)}
-                </p>
+                      <p className="font-mono font-semibold text-blue-700">
+                        {formatSeoulTime(attendance.entryAt)}
+                      </p>
 
-                <p className="text-xs text-slate-500">기록만 표시</p>
-              </article>
-            ))}
-          </div>
+                      <p
+                        className={`font-mono font-semibold ${
+                          isActive ? "text-amber-700" : "text-slate-700"
+                        }`}
+                      >
+                        {isActive ? "수강 중" : formatSeoulTime(attendance.exitAt)}
+                      </p>
+
+                      <p className="font-mono text-emerald-700">
+                        {isActive
+                          ? "-"
+                          : formatDuration(
+                              getStaySeconds(
+                                attendance.entryAt,
+                                attendance.exitAt,
+                              ),
+                            )}
+                      </p>
+
+                      <p className="text-slate-500">
+                        {formatExitSource(attendance.exitSource)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
         </section>
       )}
 
@@ -441,7 +443,12 @@ export default function TeacherSubmissionsDashboardPage() {
         <nav className="flex items-center justify-center gap-3">
           <button
             type="button"
-            onClick={handlePreviousPage}
+            onClick={() =>
+              setPagination((current) => ({
+                ...current,
+                page: Math.max(1, current.page - 1),
+              }))
+            }
             disabled={pagination.page <= 1}
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 disabled:opacity-40"
           >
@@ -454,7 +461,12 @@ export default function TeacherSubmissionsDashboardPage() {
 
           <button
             type="button"
-            onClick={handleNextPage}
+            onClick={() =>
+              setPagination((current) => ({
+                ...current,
+                page: Math.min(current.totalPages, current.page + 1),
+              }))
+            }
             disabled={pagination.page >= pagination.totalPages}
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 disabled:opacity-40"
           >

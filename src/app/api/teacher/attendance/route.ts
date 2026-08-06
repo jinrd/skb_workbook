@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { getTeacherSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 function subtractOneMonth(date: Date): Date {
   const result = new Date(date);
@@ -45,6 +45,14 @@ function parseEndDate(value: string | null): Date | null {
   return date;
 }
 
+function getStaySeconds(entryAt: Date, exitAt: Date | null): number {
+  if (!exitAt) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((exitAt.getTime() - entryAt.getTime()) / 1000));
+}
+
 export async function GET(request: Request) {
   try {
     const session = await getTeacherSession();
@@ -61,12 +69,10 @@ export async function GET(request: Request) {
     const classId = searchParams.get("classId");
     const studentId = searchParams.get("studentId");
     const studentName = searchParams.get("studentName")?.trim() ?? "";
-    const practiceGoalId = searchParams.get("practiceGoalId");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
     const requestedPage = Number(searchParams.get("page") ?? "1");
-
     const requestedPageSize = Number(searchParams.get("pageSize") ?? "30");
 
     const page =
@@ -82,18 +88,6 @@ export async function GET(request: Request) {
       select: {
         id: true,
         name: true,
-        practiceGoals: {
-          where: {
-            isActive: true,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
       },
       orderBy: {
         name: "asc",
@@ -131,9 +125,7 @@ export async function GET(request: Request) {
       !allowedClassIds.includes(classId)
     ) {
       return NextResponse.json(
-        {
-          error: "해당 반의 제출물을 조회할 권한이 없습니다.",
-        },
+        { error: "해당 반의 출석 기록을 조회할 권한이 없습니다." },
         { status: 403 },
       );
     }
@@ -151,15 +143,13 @@ export async function GET(request: Request) {
 
     if (requestedEnd && requestedEnd <= startDate) {
       return NextResponse.json(
-        {
-          error: "조회 종료일은 시작일보다 이후여야 합니다.",
-        },
+        { error: "조회 종료일은 시작일보다 이후여야 합니다." },
         { status: 400 },
       );
     }
 
-    const where: Prisma.SubmissionWhereInput = {
-      submittedAt: {
+    const where: Prisma.StudentAttendanceWhereInput = {
+      entryAt: {
         gte: startDate,
         ...(requestedEnd ? { lt: requestedEnd } : { lte: now }),
       },
@@ -184,13 +174,9 @@ export async function GET(request: Request) {
       };
     }
 
-    if (practiceGoalId) {
-      where.practiceGoalId = practiceGoalId;
-    }
-
-    const [submissions, totalSubmissionCount, durationAggregate] =
+    const [attendances, totalAttendanceCount, activeAttendanceCount] =
       await Promise.all([
-        prisma.submission.findMany({
+        prisma.studentAttendance.findMany({
           where,
           include: {
             class: {
@@ -205,47 +191,49 @@ export async function GET(request: Request) {
                 name: true,
               },
             },
-            practiceGoal: {
+            classSession: {
               select: {
                 id: true,
-                name: true,
-              },
-            },
-            files: {
-              orderBy: {
-                createdAt: "asc",
+                scheduledStartTime: true,
+                scheduledEndTime: true,
               },
             },
           },
-          orderBy: {
-            submittedAt: "desc",
-          },
+          orderBy: [{ student: { name: "asc" } }, { entryAt: "desc" }],
           skip: (page - 1) * pageSize,
           take: pageSize,
         }),
 
-        prisma.submission.count({
+        prisma.studentAttendance.count({
           where,
         }),
 
-        prisma.submission.aggregate({
-          where,
-          _sum: {
-            durationSeconds: true,
+        prisma.studentAttendance.count({
+          where: {
+            ...where,
+            exitAt: null,
           },
         }),
       ]);
 
+    const totalStaySeconds = attendances.reduce(
+      (sum, attendance) =>
+        sum + getStaySeconds(attendance.entryAt, attendance.exitAt),
+      0,
+    );
+
     return NextResponse.json({
-      submissions,
+      attendances,
       summary: {
-        totalSubmissionCount,
-        totalDurationSeconds: durationAggregate._sum.durationSeconds ?? 0,
+        totalAttendanceCount,
+        activeAttendanceCount,
+        completedAttendanceCount: totalAttendanceCount - activeAttendanceCount,
+        totalStaySeconds,
       },
       pagination: {
         page,
         pageSize,
-        totalPages: Math.ceil(totalSubmissionCount / pageSize),
+        totalPages: Math.ceil(totalAttendanceCount / pageSize),
       },
       filters: {
         retentionStart: retentionStart.toISOString(),
@@ -256,12 +244,10 @@ export async function GET(request: Request) {
       students,
     });
   } catch (error) {
-    console.error("Fetch teacher submissions error:", error);
+    console.error("Fetch teacher attendance error:", error);
 
     return NextResponse.json(
-      {
-        error: "학생 제출 기록을 불러오는 중 오류가 발생했습니다.",
-      },
+      { error: "학생 출석 기록을 불러오는 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }

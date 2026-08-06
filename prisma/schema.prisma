@@ -49,6 +49,8 @@ model Class {
   sessions           ClassSession[]
   submissions        Submission[]
   settingLogs        SettingChangeLog[]
+  
+  attendances StudentAttendance[]
 
   @@index([teacherId])
   @@index([isActive])
@@ -89,6 +91,7 @@ model Student {
   enrollments Enrollment[]
   sessions    StudentSession[]
   submissions Submission[]
+  attendances StudentAttendance[]
 
   @@index([name])
   @@index([isBlocked])
@@ -194,6 +197,8 @@ model ClassSession {
 
   studentSessions   StudentSession[]
   submissions       Submission[]
+  attendances StudentAttendance[]
+
 
   @@map("class_sessions")
 }
@@ -330,4 +335,34 @@ model MonthlyExportLog {
   @@index([periodStart, periodEnd])
   @@index([scopeKey])
   @@map("monthly_export_logs")
+}
+
+// 16. 입퇴실 기록
+enum AttendanceExitSource {
+  MANUAL
+  AUTO_SESSION_END
+}
+
+// 17. 학생 출석 상황
+model StudentAttendance {
+  id             String   @id @default(cuid())
+  classId        String
+  classSessionId String
+  studentId      String
+
+  entryAt        DateTime
+  exitAt         DateTime?
+  exitSource     AttendanceExitSource?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classSessionId, studentId])
+  @@index([classId, entryAt])
+  @@index([studentId, entryAt])
+  @@map("student_attendances")
 }

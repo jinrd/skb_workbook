@@ -130,62 +130,37 @@ function finalizeTable(
   };
 }
 
-async function createBarChartImage(
-  title: string,
-  rows: Array<{ label: string; value: number }>,
-) {
-  const width = 1100;
-  const height = 500;
-  const left = 210;
-  const right = 70;
-  const top = 80;
-  const bottom = 65;
-  const graphWidth = width - left - right;
-  const graphHeight = height - top - bottom;
-  const visibleRows = rows.slice(0, 8);
-  const maximum = Math.max(...visibleRows.map((row) => row.value), 1);
-  const rowHeight = graphHeight / Math.max(visibleRows.length, 1);
-
-  const bars = visibleRows
-    .map((row, index) => {
-      const y = top + index * rowHeight + 8;
-      const barHeight = Math.max(18, rowHeight - 16);
-      const barWidth = (row.value / maximum) * graphWidth;
-      const label = escapeXml(row.label);
-      const valueHours = Math.floor(row.value / 3600);
-      const valueMinutes = Math.floor((row.value % 3600) / 60);
-
-      return `
-        <text x="${left - 12}" y="${y + barHeight / 2 + 5}"
-          text-anchor="end" font-size="18" fill="#263238">${label}</text>
-        <rect x="${left}" y="${y}" width="${barWidth}" height="${barHeight}"
-          rx="3" fill="#2D7DD2" />
-        <text x="${left + barWidth + 10}" y="${y + barHeight / 2 + 5}"
-          font-size="16" fill="#263238">${valueHours}시간 ${valueMinutes}분</text>
-      `;
-    })
-    .join("");
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <rect width="100%" height="100%" fill="#FFFFFF" />
-      <text x="${left}" y="42" font-size="26" font-weight="700" fill="#16324F">
-        ${escapeXml(title)}
-      </text>
-      <line x1="${left}" y1="${top + graphHeight}" x2="${width - right}"
-        y2="${top + graphHeight}" stroke="#AAB7C4" stroke-width="2" />
-      ${bars}
-    </svg>
-  `;
-
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
-
 function addPngImage(workbook: ExcelJS.Workbook, image: Uint8Array) {
   return workbook.addImage({
     buffer: image as never,
     extension: "png",
   });
+}
+
+function formatChartDuration(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}:${String(minutes).padStart(2, "0")}`;
+}
+
+function getStudentChartSheetName(
+  studentName: string,
+  usedNames: Set<string>,
+) {
+  const baseName = `${studentName} 기록차트`
+    .replace(/[\\/:?*\[\]]/g, "")
+    .slice(0, 31) || "학생 기록차트";
+  let name = baseName;
+  let index = 2;
+
+  while (usedNames.has(name)) {
+    const suffix = ` ${index}`;
+    name = `${baseName.slice(0, 31 - suffix.length)}${suffix}`;
+    index += 1;
+  }
+
+  usedNames.add(name);
+  return name;
 }
 
 async function createLineChartImage(
@@ -194,7 +169,7 @@ async function createLineChartImage(
 ) {
   const width = 1100;
   const height = 500;
-  const left = 80;
+  const left = 170;
   const right = 60;
   const top = 80;
   const bottom = 90;
@@ -221,7 +196,7 @@ async function createLineChartImage(
 
       return `
         <text x="${x}" y="${height - 40}" text-anchor="middle"
-          font-size="14" fill="#52616B">${escapeXml(row.label.slice(5))}</text>
+          font-size="14" fill="#52616B">${escapeXml(row.label.includes("-") ? row.label.slice(5) : row.label)}</text>
       `;
     })
     .join("");
@@ -234,6 +209,13 @@ async function createLineChartImage(
     })
     .join("");
 
+  const yAxis = Array.from({ length: 5 }, (_, index) => {
+    const value = maximum * (index / 4);
+    const y = top + graphHeight - (value / maximum) * graphHeight;
+    return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" stroke="#D8E0E6" stroke-width="1" />
+      <text x="${left - 12}" y="${y + 5}" text-anchor="end" font-size="14" fill="#52616B">${formatChartDuration(value)}</text>`;
+  }).join("");
+
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
       <rect width="100%" height="100%" fill="#FFFFFF" />
@@ -242,12 +224,52 @@ async function createLineChartImage(
       </text>
       <line x1="${left}" y1="${top + graphHeight}" x2="${width - right}"
         y2="${top + graphHeight}" stroke="#AAB7C4" stroke-width="2" />
+      ${yAxis}
       <polyline points="${points}" fill="none" stroke="#2D7DD2" stroke-width="4" />
       ${circles}
       ${labels}
     </svg>
   `;
 
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function createCountChartImage(
+  title: string,
+  rows: Array<{ label: string; value: number }>,
+) {
+  const width = 1100;
+  const height = 500;
+  const left = 170;
+  const right = 60;
+  const top = 80;
+  const bottom = 90;
+  const graphWidth = width - left - right;
+  const graphHeight = height - top - bottom;
+  const maximum = Math.max(...rows.map((row) => row.value), 1);
+  const barWidth = rows.length ? graphWidth / rows.length * 0.65 : graphWidth;
+  const gap = rows.length ? graphWidth / rows.length : graphWidth;
+  const bars = rows.map((row, index) => {
+    const x = left + index * gap + (gap - barWidth) / 2;
+    const barHeight = (row.value / maximum) * graphHeight;
+    const y = top + graphHeight - barHeight;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="#2563eb" />
+      <text x="${x + barWidth / 2}" y="${height - 44}" text-anchor="middle" font-size="14" fill="#52616B">${escapeXml(row.label.slice(5))}</text>
+      <text x="${x + barWidth / 2}" y="${y - 8}" text-anchor="middle" font-size="14" fill="#263238">${row.value}</text>`;
+  }).join("");
+  const yAxis = Array.from({ length: 5 }, (_, index) => {
+    const value = Math.round(maximum * (index / 4));
+    const y = top + graphHeight - (value / maximum) * graphHeight;
+    return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" stroke="#D8E0E6" stroke-width="1" />
+      <text x="${left - 12}" y="${y + 5}" text-anchor="end" font-size="14" fill="#52616B">${value}회</text>`;
+  }).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <rect width="100%" height="100%" fill="#FFFFFF" />
+    <text x="${left}" y="42" font-size="26" font-weight="700" fill="#16324F">${escapeXml(title)}</text>
+    <line x1="${left}" y1="${top + graphHeight}" x2="${width - right}" y2="${top + graphHeight}" stroke="#AAB7C4" stroke-width="2" />
+    ${yAxis}
+    ${bars}
+  </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
@@ -408,50 +430,47 @@ export async function createMonthlyWorkbook(data: MonthlyExportData) {
     dailySheet.getCell(row, 3).numFmt = "[h]:mm:ss";
   }
 
-  const chartSheet = workbook.addWorksheet("차트");
-  addSheetTitle(chartSheet, `${data.periodKey} 수업 기록 차트`);
-  chartSheet.getColumn(1).width = 16;
-
-  const [dailyChart, classChart, goalChart] = await Promise.all([
-    createLineChartImage(
-      "일별 총 연습 시간",
-      data.dailySummaries.map((row) => ({
-        label: row.dateKey,
-        value: row.totalDurationSeconds,
-      })),
-    ),
-    createBarChartImage(
-      "반별 총 연습 시간",
-      data.classSummaries.map((row) => ({
-        label: row.className,
-        value: row.totalDurationSeconds,
-      })),
-    ),
-    createBarChartImage(
-      "목표별 총 연습 시간",
-      data.goalSummaries.map((row) => ({
-        label: row.goalName,
-        value: row.totalDurationSeconds,
-      })),
-    ),
+  const usedChartSheetNames = new Set<string>([
+    "요약",
+    "원본 기록",
+    "학생별 요약",
+    "목표별 요약",
+    "반별 요약",
+    "일별 분석",
   ]);
-  const dailyChartId = addPngImage(workbook, dailyChart);
-  const classChartId = addPngImage(workbook, classChart);
-  const goalChartId = addPngImage(workbook, goalChart);
-  chartSheet.addImage(dailyChartId, {
-    tl: { col: 0, row: 3 },
-    ext: { width: 880, height: 400 },
-  });
 
-  chartSheet.addImage(classChartId, {
-    tl: { col: 0, row: 25 },
-    ext: { width: 880, height: 400 },
-  });
+  for (const student of data.studentCharts) {
+    const chartSheet = workbook.addWorksheet(
+      getStudentChartSheetName(student.studentName, usedChartSheetNames),
+    );
+    addSheetTitle(
+      chartSheet,
+      `${data.periodKey} ${student.studentName} 기록 차트`,
+      "기록 분석 탭의 학생별 추이 차트입니다.",
+    );
+    chartSheet.getColumn(1).width = 16;
 
-  chartSheet.addImage(goalChartId, {
-    tl: { col: 0, row: 47 },
-    ext: { width: 880, height: 400 },
-  });
+    const [trendChart, dailyChart, countChart] = await Promise.all([
+      createLineChartImage(
+        `${student.studentName} 최근 10회 연습 시간 추이`,
+        student.recentSubmissions.map((row, index) => ({
+          label: `${index + 1}회`,
+          value: row.durationSeconds,
+        })),
+      ),
+      createLineChartImage(
+        `${student.studentName} 일별 총 연습시간`,
+        student.daily.map((row) => ({ label: row.dateKey, value: row.totalDurationSeconds })),
+      ),
+      createCountChartImage(
+        `${student.studentName} 일별 제출 횟수`,
+        student.daily.map((row) => ({ label: row.dateKey, value: row.submissionCount })),
+      ),
+    ]);
+    chartSheet.addImage(addPngImage(workbook, trendChart), { tl: { col: 0, row: 3 }, ext: { width: 880, height: 400 } });
+    chartSheet.addImage(addPngImage(workbook, dailyChart), { tl: { col: 0, row: 31 }, ext: { width: 880, height: 400 } });
+    chartSheet.addImage(addPngImage(workbook, countChart), { tl: { col: 0, row: 59 }, ext: { width: 880, height: 400 } });
+  }
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

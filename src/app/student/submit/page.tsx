@@ -30,6 +30,10 @@ export default function StudentSubmitPage() {
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 퇴실 버튼
+  const [exiting, setExiting] = useState(false);
+  const [exitMessage, setExitMessage] = useState<string | null>(null);
+
   // 폼 입력 State
   const [selectedGoalId, setSelectedGoalId] = useState("");
   const [durationHours, setDurationHours] = useState(1);
@@ -39,6 +43,15 @@ export default function StudentSubmitPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownRemaining((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownRemaining]);
 
   const totalDurationSeconds =
     durationHours * 3600 + durationMinutes * 60 + durationSeconds;
@@ -81,6 +94,30 @@ export default function StudentSubmitPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleExit = async () => {
+    setExiting(true);
+    setExitMessage(null);
+
+    try {
+      const response = await fetch("/api/student/attendance/exit", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(data.error || "퇴실 처리 중 오류가 발생했습니다.");
+        return;
+      }
+
+      setExitMessage("퇴실 시간이 기록되었습니다.");
+
+      window.location.href = data.redirectUrl ?? "/student/exit-complete";
+    } finally {
+      setExiting(false);
+    }
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -196,6 +233,7 @@ export default function StudentSubmitPage() {
 
       setSelectedFiles([]);
       setMemo("");
+      setCooldownRemaining(60);
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -252,18 +290,31 @@ export default function StudentSubmitPage() {
     <div className="min-h-screen bg-[#f6f7f4] p-3 pb-10 text-slate-900 sm:p-4">
       <div className="max-w-md mx-auto space-y-5">
         <header className="page-panel space-y-3 p-5">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                수업 수강 중
-              </span>
-              <h1 className="text-xl font-bold text-slate-950">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                  수업 수강 중
+                </span>
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                  {className}
+                </span>
+              </div>
+              <h1 className="mt-1 text-xl font-bold text-slate-950">
                 {studentName} 수강생
               </h1>
             </div>
-            <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              {className}
-            </span>
+            <button
+              type="button"
+              onClick={handleExit}
+              disabled={exiting}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              <svg className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              {exiting ? "처리 중..." : "퇴실"}
+            </button>
           </div>
 
           <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
@@ -289,12 +340,14 @@ export default function StudentSubmitPage() {
               </p>
             </div>
           </div>
+          {exitMessage && (
+            <p className="mt-2 text-xs font-semibold text-emerald-700">
+              {exitMessage}
+            </p>
+          )}
         </header>
 
-        <form
-          onSubmit={handleSubmit}
-          className="page-panel space-y-5 p-5"
-        >
+        <form onSubmit={handleSubmit} className="page-panel space-y-5 p-5">
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-950">
             <span>실습 결과물 제출</span>
           </h2>
@@ -528,7 +581,7 @@ export default function StudentSubmitPage() {
           <button
             type="submit"
             disabled={
-              submitting || goals.length === 0 || totalDurationSeconds <= 0
+              submitting || goals.length === 0 || totalDurationSeconds <= 0 || cooldownRemaining > 0
             }
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40"
           >
@@ -555,6 +608,8 @@ export default function StudentSubmitPage() {
                 </svg>
                 <span>실습 결과 제출 중...</span>
               </span>
+            ) : cooldownRemaining > 0 ? (
+              `잠시 후 다시 제출 가능 (${cooldownRemaining}초)`
             ) : (
               "실습 결과물 제출하기"
             )}

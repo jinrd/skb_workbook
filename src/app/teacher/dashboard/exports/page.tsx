@@ -209,6 +209,36 @@ export default function MonthlyExportPage() {
     }
   };
 
+  const handleAttendanceDownload = async () => {
+    setErrorMessage(null);
+    try {
+      const response = await fetch("/api/teacher/exports/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periodKey }),
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        throw new Error(data.error || "출석 엑셀 파일을 만들지 못했습니다.");
+      }
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `SKB_출석기록_${periodKey}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1_000);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "출석 엑셀 파일을 만들지 못했습니다.",
+      );
+    }
+  };
+
   const handleCleanup = async () => {
     if (!cleanupPeriod) {
       return;
@@ -287,28 +317,55 @@ export default function MonthlyExportPage() {
           className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 outline-none focus:border-blue-500"
         />
 
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={isDownloading || !periodKey}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading || !periodKey}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-3 text-[13px] font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"
-            />
-          </svg>
-          {isDownloading ? "엑셀 파일 생성 중..." : "엑셀 다운로드"}
-        </button>
+            <svg
+              className="h-4 w-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"
+              />
+            </svg>
+            <span className="truncate">
+              {isDownloading ? "생성 중..." : "수업기록 다운로드"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleAttendanceDownload}
+            disabled={isDownloading || !periodKey}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-3 text-[13px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <svg
+              className="h-4 w-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"
+              />
+            </svg>
+            <span className="truncate">출석기록 다운로드</span>
+          </button>
+        </div>
 
         {completedPeriod && (
           <p className="mt-4 text-sm font-medium text-emerald-700">

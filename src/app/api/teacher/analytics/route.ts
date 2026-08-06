@@ -149,6 +149,11 @@ export async function GET(request: Request) {
         practiceGoalId: true,
         goalName: true,
         durationSeconds: true,
+        practiceGoal: {
+          select: {
+            name: true,
+          },
+        },
         class: {
           select: {
             id: true,
@@ -205,6 +210,7 @@ export async function GET(request: Request) {
     >();
 
     for (const submission of submissions) {
+      const currentGoalName = submission.practiceGoal.name;
       const dateKey = getSeoulDateKey(submission.submittedAt);
 
       const daily = dailyMap.get(dateKey);
@@ -226,8 +232,8 @@ export async function GET(request: Request) {
 
       classMap.set(submission.class.id, classSummary);
 
-      const goalSummary = goalMap.get(submission.goalName) ?? {
-        goalName: submission.goalName,
+      const goalSummary = goalMap.get(currentGoalName) ?? {
+        goalName: currentGoalName,
         submissionCount: 0,
         totalDurationSeconds: 0,
       };
@@ -235,7 +241,7 @@ export async function GET(request: Request) {
       goalSummary.submissionCount += 1;
       goalSummary.totalDurationSeconds += submission.durationSeconds;
 
-      goalMap.set(submission.goalName, goalSummary);
+      goalMap.set(currentGoalName, goalSummary);
 
       const studentSummary = studentMap.get(submission.student.id) ?? {
         studentId: submission.student.id,
@@ -275,7 +281,7 @@ export async function GET(request: Request) {
         return {
           id: submission.id,
           submittedAt: submission.submittedAt,
-          goalName: submission.goalName,
+          goalName: submission.practiceGoal.name,
           durationSeconds: submission.durationSeconds,
           previousDurationSeconds: previousDurationSeconds ?? null,
           durationChangeSeconds:

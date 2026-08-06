@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 export default function TeacherDashboardLayout({
   children,
@@ -10,6 +10,29 @@ export default function TeacherDashboardLayout({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const [teacherRole, setTeacherRole] = useState<"ADMIN" | "TEACHER" | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetch("/api/teacher/sessions/status")
+      .then(async (response) => {
+        const data = await response.json();
+
+        if (!ignore && response.ok) {
+          setTeacherRole(data.teacher?.role ?? null);
+        }
+      })
+      .catch((error) => {
+        console.error("Fetch teacher role error:", error);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -95,6 +118,25 @@ export default function TeacherDashboardLayout({
             strokeLinejoin="round"
             strokeWidth="2"
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      ),
+    },
+    {
+      label: "출석 기록",
+      href: "/teacher/dashboard/attendance",
+      icon: (
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M8 7V3m8 4V3M5 11h14M7 21h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2zm2-5l2 2 4-4"
           />
         </svg>
       ),
@@ -190,8 +232,14 @@ export default function TeacherDashboardLayout({
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 h-20 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-lg">
         <div className="mobile-scroll mx-auto max-w-5xl">
-          <div className="grid min-w-[560px] grid-cols-7 gap-1">
-            {navItems.map((item) => {
+          <div className="grid min-w-[640px] grid-cols-8 gap-1">
+            {navItems
+              .filter(
+                (item) =>
+                  item.href !== "/teacher/dashboard/audit-logs" ||
+                  teacherRole === "ADMIN",
+              )
+              .map((item) => {
               const isActive = item.exact
                 ? pathname === item.href
                 : pathname.startsWith(item.href);
