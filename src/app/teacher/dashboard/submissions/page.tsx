@@ -36,6 +36,11 @@ interface SubmissionItem {
     id: string;
     name: string;
   } | null;
+  files: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string | null;
+  }>;
 }
 
 interface SubmissionSummary {
@@ -430,7 +435,25 @@ export default function TeacherSubmissionsDashboardPage() {
                   {formatDuration(submission.durationSeconds)}
                 </p>
 
-                <p className="text-xs text-slate-500">기록만 표시</p>
+                <div className="min-w-0">
+                  {submission.files.length === 0 ? (
+                    <span className="text-xs text-slate-400">없음</span>
+                  ) : (
+                    <div className="space-y-1">
+                      {submission.files.map((file) => (
+                        <a
+                          key={file.id}
+                          href={`/api/teacher/submissions/${submission.id}/files/${file.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block truncate text-xs font-semibold text-blue-700 underline underline-offset-2"
+                        >
+                          {file.fileName}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </article>
             ))}
           </div>
