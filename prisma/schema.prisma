@@ -25,6 +25,7 @@ model Teacher {
   classes           Class[]             @relation("ClassTeacher")
   settingLogs       SettingChangeLog[]
   updatePosts       UpdatePost[]
+  updatePostReads   UpdatePostRead[]
 
   @@map("teachers")
 }
@@ -42,9 +43,24 @@ model UpdatePost {
   authorId    String
 
   author Teacher @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reads  UpdatePostRead[]
 
   @@index([publishedAt])
   @@map("update_posts")
+}
+
+model UpdatePostRead {
+  id           String   @id @default(cuid())
+  updatePostId String
+  teacherId    String
+  readAt       DateTime @default(now())
+
+  updatePost UpdatePost @relation(fields: [updatePostId], references: [id], onDelete: Cascade)
+  teacher    Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([updatePostId, teacherId])
+  @@index([teacherId, readAt])
+  @@map("update_post_reads")
 }
 
 // 2. 반 (Class)

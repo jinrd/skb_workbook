@@ -30,7 +30,12 @@ export async function GET() {
       include: { author: { select: { name: true } } },
       orderBy: { publishedAt: "desc" },
     });
-    return NextResponse.json({ updates, isDeveloper: isDeveloper(session) });
+    const unreadCount = await prisma.updatePost.count({
+      where: {
+        reads: { none: { teacherId: session.teacherId } },
+      },
+    });
+    return NextResponse.json({ updates, unreadCount, isDeveloper: isDeveloper(session) });
   } catch (error) {
     console.error("Fetch update posts error:", error);
     return NextResponse.json({ error: "업데이트 기록을 불러오지 못했습니다." }, { status: 500 });

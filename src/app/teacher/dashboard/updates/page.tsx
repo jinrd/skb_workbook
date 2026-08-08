@@ -20,6 +20,7 @@ export default function UpdatesPage() {
       const data = text ? (JSON.parse(text) as { error?: string; updates?: Update[]; isDeveloper?: boolean }) : {};
       if (!response.ok) { setError(data.error || "업데이트 기록을 불러오지 못했습니다."); return; }
       setUpdates(data.updates ?? []); setIsDeveloper(Boolean(data.isDeveloper));
+      await fetch("/api/teacher/updates/read", { method: "POST" });
     } catch (loadError) {
       console.error("Fetch updates page error:", loadError);
       setError("업데이트 기록을 불러오는 중 오류가 발생했습니다.");

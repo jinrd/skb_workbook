@@ -13,6 +13,8 @@ export default function TeacherDashboardLayout({
   const [teacherRole, setTeacherRole] = useState<"ADMIN" | "TEACHER" | null>(
     null,
   );
+  const [hasNewUpdate, setHasNewUpdate] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -33,6 +35,16 @@ export default function TeacherDashboardLayout({
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    fetch("/api/teacher/updates")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = (await response.json()) as { unreadCount?: number };
+        setHasNewUpdate((data.unreadCount ?? 0) > 0);
+      })
+      .catch((error) => console.error("Fetch update notification error:", error));
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
@@ -227,26 +239,68 @@ export default function TeacherDashboardLayout({
             </div>
           </Link>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 active:scale-95"
-          >
-            로그아웃
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/teacher/dashboard/updates"
+              onClick={() => { void fetch("/api/teacher/updates/read", { method: "POST" }); setHasNewUpdate(false); }}
+              className="relative rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100"
+            >
+              업데이트
+              {hasNewUpdate && (
+                <span className="absolute -right-1.5 -top-1.5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                  새 소식
+                </span>
+              )}
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 active:scale-95"
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl p-3 sm:p-4 md:p-6">{children}</main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 h-20 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-lg">
+        {showMoreMenu && (
+          <div className="absolute bottom-[76px] left-2 right-2 mx-auto grid max-w-5xl grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+            {navItems
+              .filter((item) => item.href !== "/teacher/dashboard/audit-logs" || teacherRole === "ADMIN")
+              .filter((item) => ![
+                "/teacher/dashboard",
+                "/teacher/dashboard/submissions",
+                "/teacher/dashboard/attendance",
+                "/teacher/dashboard/updates",
+              ].includes(item.href))
+              .map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setShowMoreMenu(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
+          </div>
+        )}
         <div className="mobile-scroll mx-auto max-w-5xl">
-          <div className="grid min-w-[720px] grid-cols-9 gap-1">
+          <div className="grid grid-cols-5 gap-1">
             {navItems
               .filter(
                 (item) =>
-                  item.href !== "/teacher/dashboard/audit-logs" ||
-                  teacherRole === "ADMIN",
+                  (item.href !== "/teacher/dashboard/audit-logs" || teacherRole === "ADMIN") &&
+                  ([
+                    "/teacher/dashboard",
+                    "/teacher/dashboard/submissions",
+                    "/teacher/dashboard/attendance",
+                    "/teacher/dashboard/updates",
+                  ].includes(item.href)),
               )
               .map((item) => {
               const isActive = item.exact
@@ -272,6 +326,14 @@ export default function TeacherDashboardLayout({
                 </Link>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setShowMoreMenu((current) => !current)}
+              className={`flex h-14 flex-col items-center justify-center rounded-xl px-1 text-slate-500 ${showMoreMenu ? "bg-slate-100 text-slate-900" : ""}`}
+            >
+              <span className="text-lg leading-5">•••</span>
+              <span className="mt-1 h-3 w-full text-center text-[10px] leading-3">더보기</span>
+            </button>
           </div>
         </div>
       </nav>
