@@ -198,6 +198,15 @@ export default function TeacherDashboardLayout({
         </svg>
       ),
     },
+    {
+      label: "업데이트",
+      href: "/teacher/dashboard/updates",
+      icon: (
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -232,7 +241,7 @@ export default function TeacherDashboardLayout({
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 h-20 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-lg">
         <div className="mobile-scroll mx-auto max-w-5xl">
-          <div className="grid min-w-[640px] grid-cols-8 gap-1">
+          <div className="grid min-w-[720px] grid-cols-9 gap-1">
             {navItems
               .filter(
                 (item) =>

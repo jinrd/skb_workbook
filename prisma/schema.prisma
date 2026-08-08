@@ -24,8 +24,27 @@ model Teacher {
 
   classes           Class[]             @relation("ClassTeacher")
   settingLogs       SettingChangeLog[]
+  updatePosts       UpdatePost[]
 
   @@map("teachers")
+}
+
+model UpdatePost {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  changeType  String
+  version     String?
+  target      String?
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  authorId    String
+
+  author Teacher @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([publishedAt])
+  @@map("update_posts")
 }
 
 // 2. 반 (Class)

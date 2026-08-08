@@ -12,6 +12,7 @@ interface SubmissionFileItem {
   id: string;
   fileName: string;
   fileSize: number;
+  mimeType: string | null;
 }
 
 interface SubmissionItem {
@@ -21,6 +22,7 @@ interface SubmissionItem {
   durationSeconds: number;
   memo: string | null;
   files: SubmissionFileItem[];
+  practiceGoal?: { name: string } | null;
 }
 
 export default function StudentSubmitPage() {
@@ -29,6 +31,12 @@ export default function StudentSubmitPage() {
   const [goals, setGoals] = useState<PracticeGoalItem[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"form" | "history">("form");
+  const [previewFile, setPreviewFile] = useState<{
+    url: string;
+    fileName: string;
+    mimeType: string | null;
+  } | null>(null);
 
   // 퇴실 버튼
   const [exiting, setExiting] = useState(false);
@@ -347,6 +355,33 @@ export default function StudentSubmitPage() {
           )}
         </header>
 
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("form")}
+            className={`rounded-md px-3 py-2.5 text-sm font-bold transition ${
+              activeTab === "form"
+                ? "bg-blue-600 text-white"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            제출 폼
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            className={`rounded-md px-3 py-2.5 text-sm font-bold transition ${
+              activeTab === "history"
+                ? "bg-blue-600 text-white"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            제출 내역
+            <span className="ml-1 text-xs opacity-80">({submissions.length})</span>
+          </button>
+        </div>
+
+        {activeTab === "form" ? (
         <form onSubmit={handleSubmit} className="page-panel space-y-5 p-5">
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-950">
             <span>실습 결과물 제출</span>
@@ -615,67 +650,82 @@ export default function StudentSubmitPage() {
             )}
           </button>
         </form>
-
-        {/* 이번 수업 제출 내역 */}
-        <section className="space-y-3 border-t border-slate-200 pt-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-950">
-              이번 수업 제출 내역
-            </h3>
-
-            <span className="text-xs font-semibold text-blue-700">
-              {submissions.length}회
-            </span>
+        ) : (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-950">제출 내역</h2>
+              <p className="mt-1 text-xs text-slate-500">이번 수업에서 본인이 제출한 기록입니다.</p>
+            </div>
+            <span className="text-xs font-semibold text-blue-700">{submissions.length}회</span>
           </div>
 
           {submissions.length === 0 ? (
-            <div className="page-panel px-4 py-8 text-center">
-              <p className="text-xs text-slate-500">
-                아직 제출한 기록이 없습니다.
-              </p>
+            <div className="page-panel px-4 py-10 text-center">
+              <p className="text-xs text-slate-500">아직 제출한 기록이 없습니다.</p>
             </div>
           ) : (
             <div className="space-y-2">
               {submissions.map((submission) => (
-                <article
-                  key={submission.id}
-                  className="page-panel space-y-3 p-4"
-                >
+                <article key={submission.id} className="page-panel space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-950">
-                        {submission.goalName}
+                        {submission.practiceGoal?.name ?? submission.goalName}
                       </p>
-
                       <p className="mt-1 font-mono text-xs text-emerald-700">
                         {formatDuration(submission.durationSeconds)}
                       </p>
                     </div>
-
                     <time className="shrink-0 font-mono text-[11px] text-slate-500">
-                      {new Date(submission.submittedAt).toLocaleTimeString(
-                        "ko-KR",
-                        {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                          hour12: false,
-                        },
-                      )}
+                      {new Date(submission.submittedAt).toLocaleTimeString("ko-KR", {
+                        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+                      })}
                     </time>
                   </div>
-
                   {submission.memo && (
-                    <p className="whitespace-pre-wrap text-xs leading-5 text-slate-700">
-                      {submission.memo}
-                    </p>
+                    <p className="whitespace-pre-wrap text-xs leading-5 text-slate-700">{submission.memo}</p>
                   )}
-
                   {submission.files.length > 0 && (
                     <div className="border-t border-slate-200 pt-2">
-                      <p className="text-[11px] text-slate-500">
-                        첨부파일 {submission.files.length}개
-                      </p>
+                      <p className="text-[11px] font-semibold text-slate-500">첨부파일 {submission.files.length}개</p>
+                      <div className="mt-2 space-y-1">
+                        {submission.files.map((file) => {
+                          const fileUrl = `/api/student/submissions/${submission.id}/files/${file.id}`;
+                          const canPreview = Boolean(
+                            file.mimeType?.startsWith("image/") ||
+                              file.mimeType?.startsWith("video/") ||
+                              file.mimeType === "application/pdf",
+                          );
+
+                          return canPreview ? (
+                            <button
+                              key={file.id}
+                              type="button"
+                              onClick={() =>
+                                setPreviewFile({
+                                  url: fileUrl,
+                                  fileName: file.fileName,
+                                  mimeType: file.mimeType,
+                                })
+                              }
+                              className="block max-w-full truncate text-left text-xs text-blue-700 underline underline-offset-2"
+                            >
+                              {file.fileName} 미리보기
+                            </button>
+                          ) : (
+                            <a
+                              key={file.id}
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block max-w-full truncate text-xs text-blue-700 underline underline-offset-2"
+                            >
+                              {file.fileName} 열기
+                            </a>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </article>
@@ -683,6 +733,44 @@ export default function StudentSubmitPage() {
             </div>
           )}
         </section>
+        )}
+
+        {previewFile && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="첨부파일 미리보기"
+            onClick={() => setPreviewFile(null)}
+          >
+            <div
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <p className="min-w-0 truncate text-sm font-semibold text-slate-950">{previewFile.fileName}</p>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(null)}
+                  className="ml-3 shrink-0 px-2 py-1 text-lg leading-none text-slate-500 hover:text-slate-950"
+                  aria-label="미리보기 닫기"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="flex min-h-80 items-center justify-center overflow-auto bg-slate-100 p-3">
+                {previewFile.mimeType?.startsWith("image/") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewFile.url} alt={previewFile.fileName} className="max-h-[72vh] max-w-full object-contain" />
+                ) : previewFile.mimeType?.startsWith("video/") ? (
+                  <video src={previewFile.url} controls className="max-h-[72vh] max-w-full" />
+                ) : (
+                  <iframe src={previewFile.url} title={previewFile.fileName} className="h-[72vh] w-full bg-white" />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

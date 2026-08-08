@@ -42,6 +42,11 @@ export async function GET() {
       },
       include: {
         files: true,
+        practiceGoal: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: {
         submittedAt: "desc",

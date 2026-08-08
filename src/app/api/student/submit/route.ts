@@ -181,7 +181,8 @@ export async function POST(request: Request) {
         const { Readable } = await import("node:stream");
 
         const driveResult = await uploadStreamToGoogleDrive({
-          stream: Readable.from(buffer),
+          // Buffer를 여러 바이트 청크로 해석하지 않고 하나의 업로드 본문으로 전달합니다.
+          stream: Readable.from([buffer]),
           fileName: formattedFileName,
           mimeType: file.type || "application/octet-stream",
         });
@@ -209,12 +210,15 @@ export async function POST(request: Request) {
         where: { id: submission.id },
       });
 
-      const message =
-        uploadError instanceof Error
-          ? uploadError.message
-          : String(uploadError);
-
-      console.error("Google Drive upload failed:", message);
+      const uploadErrorRecord =
+        typeof uploadError === "object" && uploadError !== null
+          ? uploadError as { message?: string; code?: number; response?: { data?: unknown } }
+          : null;
+      console.error("Google Drive upload failed:", {
+        message: uploadError instanceof Error ? uploadError.message : String(uploadError),
+        code: uploadErrorRecord?.code,
+        response: uploadErrorRecord?.response?.data,
+      });
 
       return NextResponse.json(
         {

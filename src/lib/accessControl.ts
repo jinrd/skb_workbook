@@ -96,7 +96,7 @@ export async function checkClassAccess(params: {
   const activeSession = await prisma.classSession.findFirst({
     where: {
       classId: targetClass.id,
-      status: 'OPEN',
+      status: { in: ['OPEN', 'EXTENDED'] },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -141,10 +141,22 @@ export async function checkClassAccess(params: {
       };
     } else {
       // 시간 경과로 인한 세션 자동 마감 처리
-      await prisma.classSession.update({
-        where: { id: activeSession.id },
-        data: { status: 'CLOSED' },
-      });
+      await prisma.$transaction([
+        prisma.classSession.update({
+          where: { id: activeSession.id },
+          data: { status: 'CLOSED' },
+        }),
+        prisma.studentAttendance.updateMany({
+          where: {
+            classSessionId: activeSession.id,
+            exitAt: null,
+          },
+          data: {
+            exitAt: now,
+            exitSource: 'AUTO_SESSION_END',
+          },
+        }),
+      ]);
     }
   }
 
